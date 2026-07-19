@@ -77,6 +77,23 @@ export function updateMemberMenus(
   )
 }
 
+export function updateMemberManagerPin(
+  userId: string,
+  pin: string | null,
+  accessToken: string,
+  tenantId: string
+) {
+  return apiFetch<{ userId: string; hasManagerPin: boolean }>(
+    `/tenant/members/${encodeURIComponent(userId)}/manager-pin`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ pin }),
+      accessToken,
+      tenantId,
+    }
+  )
+}
+
 export function getInvitationPreview(token: string, accessToken: string) {
   return apiFetch<InvitationPreviewDto>(
     `/invitations/${encodeURIComponent(token)}`,

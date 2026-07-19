@@ -49,6 +49,20 @@ export function getCurrentTenant(accessToken: string, tenantId: string) {
   })
 }
 
+export function updateStoreStatus(
+  action: "open" | "close",
+  pin: string,
+  accessToken: string,
+  tenantId: string
+) {
+  return apiFetch<CurrentTenantDto>("/tenant/me/store-status", {
+    method: "POST",
+    body: JSON.stringify({ action, pin }),
+    accessToken,
+    tenantId,
+  })
+}
+
 export function updateTenantLogo(
   logoUrl: string | null,
   accessToken: string,

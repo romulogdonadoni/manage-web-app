@@ -66,6 +66,9 @@ export type CurrentTenantDto = {
   identifier: string
   name: string
   logoUrl: string | null
+  isOpen: boolean
+  openedAtUtc: string | null
+  closedAtUtc: string | null
   user: CurrentUserDto | null
 }
 
@@ -88,6 +91,7 @@ export type TenantMemberDto = {
   joinedAtUtc: string
   lastLoginAtUtc: string | null
   allowedMenus: string[] | null
+  hasManagerPin: boolean
 }
 
 export type InvitationDto = {

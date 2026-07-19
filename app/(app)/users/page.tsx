@@ -58,6 +58,7 @@ import {
   listTenantInvitations,
   listTenantMembers,
   revokeTenantInvitation,
+  updateMemberManagerPin,
   updateMemberMenus,
 } from "@/lib/api/invitations"
 import type { InvitationDto, TenantMemberDto } from "@/lib/api/types"
@@ -253,6 +254,7 @@ export default function UsersPage() {
   const tenantId = store?.identifier ?? null
   const accessToken = session?.accessToken
   const canInvite = canManageTeam(store?.user?.tenantRole)
+  const isOwner = store?.user?.tenantRole === "owner"
   const currentUserId = store?.user?.id
 
   const [members, setMembers] = useState<TenantMemberDto[]>([])
@@ -273,6 +275,9 @@ export default function UsersPage() {
   )
   const [editMenus, setEditMenus] = useState<string[]>([])
   const [savingMenus, setSavingMenus] = useState(false)
+  const [managerPin, setManagerPin] = useState("")
+  const [managerPinConfirm, setManagerPinConfirm] = useState("")
+  const [savingPin, setSavingPin] = useState(false)
 
   const load = useCallback(async () => {
     if (!accessToken || !tenantId) {
@@ -317,6 +322,8 @@ export default function UsersPage() {
 
   function openEdit(member: TenantMemberDto) {
     setEditingMember(member)
+    setManagerPin("")
+    setManagerPinConfirm("")
     setEditMenus(
       member.allowedMenus?.length
         ? [...member.allowedMenus]
@@ -324,6 +331,11 @@ export default function UsersPage() {
           ? [...MENU_PRESETS.find((p) => p.id === "ops")!.menus]
           : ["dashboard", "auth", "settings", "billing"]
     )
+  }
+
+  function canEditMember(member: TenantMemberDto) {
+    if (isOwner) return true
+    return canInvite && member.role !== "owner"
   }
 
   function openInvite() {
@@ -377,6 +389,7 @@ export default function UsersPage() {
 
   async function handleSaveMenus() {
     if (!accessToken || !tenantId || !editingMember || savingMenus) return
+    if (editingMember.role === "owner") return
     setSavingMenus(true)
     try {
       const memberId = editingMember.userId
@@ -398,6 +411,96 @@ export default function UsersPage() {
       )
     } finally {
       setSavingMenus(false)
+    }
+  }
+
+  async function handleSaveManagerPin() {
+    if (!accessToken || !tenantId || !editingMember || !isOwner || savingPin) {
+      return
+    }
+    if (managerPin !== managerPinConfirm) {
+      toast.error("As senhas não coincidem.")
+      return
+    }
+    if (managerPin.trim().length < 4 || managerPin.trim().length > 32) {
+      toast.error("A senha deve ter entre 4 e 32 caracteres.")
+      return
+    }
+
+    setSavingPin(true)
+    try {
+      const result = await updateMemberManagerPin(
+        editingMember.userId,
+        managerPin.trim(),
+        accessToken,
+        tenantId
+      )
+      toast.success("Senha de gerente salva.")
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.userId === result.userId
+            ? { ...m, hasManagerPin: result.hasManagerPin }
+            : m
+        )
+      )
+      setEditingMember((prev) =>
+        prev && prev.userId === result.userId
+          ? { ...prev, hasManagerPin: result.hasManagerPin }
+          : prev
+      )
+      setManagerPin("")
+      setManagerPinConfirm("")
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Falha ao salvar a senha de gerente."
+      )
+    } finally {
+      setSavingPin(false)
+    }
+  }
+
+  async function handleClearManagerPin() {
+    if (!accessToken || !tenantId || !editingMember || !isOwner || savingPin) {
+      return
+    }
+
+    setSavingPin(true)
+    try {
+      const result = await updateMemberManagerPin(
+        editingMember.userId,
+        null,
+        accessToken,
+        tenantId
+      )
+      toast.success("Senha de gerente removida.")
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.userId === result.userId
+            ? { ...m, hasManagerPin: result.hasManagerPin }
+            : m
+        )
+      )
+      setEditingMember((prev) =>
+        prev && prev.userId === result.userId
+          ? { ...prev, hasManagerPin: result.hasManagerPin }
+          : prev
+      )
+      setManagerPin("")
+      setManagerPinConfirm("")
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Falha ao remover a senha de gerente."
+      )
+    } finally {
+      setSavingPin(false)
     }
   }
 
@@ -520,6 +623,7 @@ export default function UsersPage() {
                     <TableHead>Pessoa</TableHead>
                     <TableHead>Perfil</TableHead>
                     <TableHead>Acesso</TableHead>
+                    <TableHead>Senha</TableHead>
                     <TableHead className="w-[1%]" />
                   </TableRow>
                 </TableHeader>
@@ -558,7 +662,14 @@ export default function UsersPage() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        {canInvite && user.role !== "owner" ? (
+                        <Badge
+                          variant={user.hasManagerPin ? "default" : "outline"}
+                        >
+                          {user.hasManagerPin ? "Com senha" : "Sem senha"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {canEditMember(user) ? (
                           <Button
                             type="button"
                             size="sm"
@@ -566,7 +677,7 @@ export default function UsersPage() {
                             onClick={() => openEdit(user)}
                           >
                             <Pencil data-icon="inline-start" />
-                            Menus
+                            {isOwner ? "Editar" : "Menus"}
                           </Button>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
@@ -637,7 +748,11 @@ export default function UsersPage() {
         <Sheet
           open={Boolean(editingMember)}
           onOpenChange={(open) => {
-            if (!open) setEditingMember(null)
+            if (!open) {
+              setEditingMember(null)
+              setManagerPin("")
+              setManagerPinConfirm("")
+            }
           }}
         >
           <SheetContent
@@ -646,31 +761,121 @@ export default function UsersPage() {
           >
             <SheetHeader>
               <SheetTitle>
-                Menus de {editingMember?.displayName ?? "funcionário"}
+                {editingMember?.displayName ?? "Funcionário"}
               </SheetTitle>
               <SheetDescription>
-                Escolha um atalho ou marque só o que essa pessoa precisa no
-                dia a dia.
+                {editingMember?.role === "owner"
+                  ? "Defina a senha de gerente usada para abrir e fechar a loja."
+                  : "Ajuste o acesso aos menus e, se for owner, a senha de gerente."}
               </SheetDescription>
             </SheetHeader>
-            <div className="flex min-h-0 flex-1 flex-col px-6 pb-2">
-              <MenuAccessPicker value={editMenus} onChange={setEditMenus} />
-            </div>
+            <ScrollArea className="min-h-0 flex-1 px-6">
+              <div className="space-y-6 pb-4">
+                {editingMember && editingMember.role !== "owner" ? (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium">Menus</p>
+                      <p className="text-xs text-muted-foreground">
+                        Escolha um atalho ou marque só o que essa pessoa precisa.
+                      </p>
+                    </div>
+                    <MenuAccessPicker
+                      value={editMenus}
+                      onChange={setEditMenus}
+                    />
+                    <Button
+                      type="button"
+                      className="w-full"
+                      disabled={savingMenus}
+                      onClick={() => void handleSaveMenus()}
+                    >
+                      {savingMenus ? "Salvando…" : "Salvar acesso"}
+                    </Button>
+                  </div>
+                ) : null}
+
+                {isOwner && editingMember ? (
+                  <div className="space-y-3">
+                    {editingMember.role !== "owner" ? (
+                      <Separator />
+                    ) : null}
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">Senha de gerente</p>
+                        <p className="text-xs text-muted-foreground">
+                          Usada para abrir e fechar a loja (4–32 caracteres).
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          editingMember.hasManagerPin ? "default" : "outline"
+                        }
+                      >
+                        {editingMember.hasManagerPin
+                          ? "Com senha"
+                          : "Sem senha"}
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="manager-pin">Nova senha</Label>
+                      <Input
+                        id="manager-pin"
+                        type="password"
+                        autoComplete="new-password"
+                        value={managerPin}
+                        onChange={(e) => setManagerPin(e.target.value)}
+                        minLength={4}
+                        maxLength={32}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="manager-pin-confirm">Confirmar senha</Label>
+                      <Input
+                        id="manager-pin-confirm"
+                        type="password"
+                        autoComplete="new-password"
+                        value={managerPinConfirm}
+                        onChange={(e) => setManagerPinConfirm(e.target.value)}
+                        minLength={4}
+                        maxLength={32}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="button"
+                        className="flex-1"
+                        disabled={
+                          savingPin ||
+                          !managerPin ||
+                          managerPin !== managerPinConfirm
+                        }
+                        onClick={() => void handleSaveManagerPin()}
+                      >
+                        {savingPin ? "Salvando…" : "Salvar senha"}
+                      </Button>
+                      {editingMember.hasManagerPin ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={savingPin}
+                          onClick={() => void handleClearManagerPin()}
+                        >
+                          Remover
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </ScrollArea>
             <SheetFooter className="flex-row gap-2 border-t">
               <Button
                 type="button"
-                className="flex-1"
-                disabled={savingMenus}
-                onClick={() => void handleSaveMenus()}
-              >
-                {savingMenus ? "Salvando…" : "Salvar acesso"}
-              </Button>
-              <Button
-                type="button"
                 variant="outline"
+                className="flex-1"
                 onClick={() => setEditingMember(null)}
               >
-                Cancelar
+                Fechar
               </Button>
             </SheetFooter>
           </SheetContent>
