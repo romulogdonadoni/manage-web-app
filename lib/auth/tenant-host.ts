@@ -14,13 +14,18 @@ const RESERVED_SEGMENTS = new Set([
   "mail",
   "status",
   "docs",
+  "create",
   "onboarding",
+  "account",
+  "invite",
+  "whitelabel",
   "_next",
   "tables",
   "services",
   "fitting",
   "scheduling",
   "settings",
+  "profile",
   "inventory",
   "menu",
   "modifiers",
@@ -68,6 +73,7 @@ export function isValidTenantSlug(value: string) {
  * Examples:
  * - /cowboy-burger-67 → cowboy-burger-67
  * - /cowboy-burger-67/menu → cowboy-burger-67
+ * - /create → null
  * - /onboarding → null
  */
 export function resolveTenantFromPath(
@@ -108,6 +114,17 @@ export function isCompanyPickerPath(pathname: string) {
   return pathname === "/"
 }
 
+/** Global manage shell (companies + account) — never tenant-prefixed. */
+export function isManageShellPath(pathname: string) {
+  return (
+    pathname === "/" ||
+    pathname === "/account" ||
+    pathname.startsWith("/account/") ||
+    pathname === "/invite" ||
+    pathname.startsWith("/invite/")
+  )
+}
+
 export function readTenantCookie(cookieHeader: string | null): string | null {
   if (!cookieHeader) return null
   const match = cookieHeader.match(
@@ -129,10 +146,6 @@ export function resolveTenant(input: {
 
   return (
     resolveTenantFromPath(input.pathname) ||
-    readTenantCookie(input.cookieHeader ?? null) ||
-    (process.env.AUTH_KEYCLOAK_REALM &&
-    isValidTenantSlug(process.env.AUTH_KEYCLOAK_REALM)
-      ? process.env.AUTH_KEYCLOAK_REALM
-      : null)
+    readTenantCookie(input.cookieHeader ?? null)
   )
 }

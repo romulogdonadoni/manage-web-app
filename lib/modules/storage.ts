@@ -67,7 +67,7 @@ export function ensureBilling(modules: ModuleId[]): BillingState {
   return bootstrapBilling(modules)
 }
 
-/** Cria assinatura inicial após o onboarding. */
+/** Cria assinatura inicial após criar a empresa. */
 export function bootstrapBilling(modules: ModuleId[]) {
   const previous = new Date()
   previous.setMonth(previous.getMonth() - 1)

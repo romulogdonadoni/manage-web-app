@@ -4,14 +4,14 @@ import { auth } from "@/lib/auth"
 import { TENANT_COOKIE } from "@/lib/auth/constants"
 import {
   TENANT_HEADER,
-  isCompanyPickerPath,
+  isManageShellPath,
   readTenantCookie,
   splitTenantPath,
   withTenantPrefix,
 } from "@/lib/auth/tenant-host"
 
 const PUBLIC_PREFIXES = [
-  "/onboarding",
+  "/create",
   "/api/auth",
   "/_next",
   "/favicon.ico",
@@ -62,13 +62,21 @@ export async function proxy(request: NextRequest) {
     splitTenantPath(pathname)
   const cookieTenant = readTenantCookie(request.headers.get("cookie"))
 
-  // Company picker stays at / even when a tenant cookie exists.
-  if (isCompanyPickerPath(pathname)) {
+  // Manage shell stays unprefixed even when a tenant cookie exists.
+  if (isManageShellPath(pathname)) {
     const requestHeaders = forwardRequestHeaders(request, null)
+
+    const session = await auth()
+    if (!session) {
+      const login = new URL("/api/auth/login", origin)
+      login.searchParams.set("callbackUrl", pathname)
+      return NextResponse.redirect(login)
+    }
+
     return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
-  // Public routes stay unprefixed (onboarding, auth callbacks).
+  // Public routes stay unprefixed (create, auth callbacks).
   if (!pathTenant && cookieTenant && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone()
     url.pathname = withTenantPrefix(cookieTenant, pathname)

@@ -28,18 +28,7 @@ export type ModuleId =
   | "ecommerce"
   | "vehicles"
 
-export type IndustryId =
-  | "food.burger"
-  | "food.restaurant"
-  | "food.cafe"
-  | "food.pizza"
-  | "pet.retail"
-  | "pet.clinic"
-  | "retail.liquor"
-  | "retail.grocery"
-  | "retail.fashion"
-  | "services.beauty"
-  | "services.auto"
+export type IndustryId = "food.restaurant" | "pet.retail"
 
 export type ModuleDef = {
   id: ModuleId
@@ -52,7 +41,7 @@ export type ModuleDef = {
 
 export type IndustryModule = {
   id: ModuleId
-  /** Pré-selecionado no onboarding */
+  /** Incluído automaticamente na criação da empresa */
   recommended?: boolean
 }
 
@@ -71,7 +60,7 @@ export const CORE_MODULES: ModuleDef[] = [
   {
     id: "auth",
     label: "Autenticação",
-    description: "Login, realm Keycloak, usuários e roles",
+    description: "Login, Auth0, funcionários e roles",
     priceMonthly: 0,
     core: true,
   },
@@ -261,24 +250,9 @@ export function getModule(id: ModuleId): ModuleDef {
 
 export const INDUSTRIES: IndustryDef[] = [
   {
-    id: "food.burger",
-    label: "Hamburgueria",
-    description: "Smash, delivery e fila de cozinha",
-    group: "Food",
-    modules: [
-      { id: "menu", recommended: true },
-      { id: "modifiers", recommended: true },
-      { id: "kds", recommended: true },
-      { id: "delivery", recommended: true },
-      { id: "counter", recommended: true },
-      { id: "tables" },
-      { id: "inventory" },
-    ],
-  },
-  {
     id: "food.restaurant",
     label: "Restaurante",
-    description: "Salão, comandas e reservas",
+    description: "Salão, comandas, cozinha e delivery",
     group: "Food",
     modules: [
       { id: "menu", recommended: true },
@@ -286,41 +260,15 @@ export const INDUSTRIES: IndustryDef[] = [
       { id: "tables", recommended: true },
       { id: "reservations", recommended: true },
       { id: "kds", recommended: true },
-      { id: "delivery" },
-      { id: "counter", recommended: true },
-      { id: "inventory" },
-    ],
-  },
-  {
-    id: "food.cafe",
-    label: "Cafeteria / Padaria",
-    description: "PDV rápido e vitrine do dia",
-    group: "Food",
-    modules: [
-      { id: "menu", recommended: true },
-      { id: "modifiers", recommended: true },
-      { id: "counter", recommended: true },
-      { id: "loyalty", recommended: true },
-      { id: "delivery" },
-    ],
-  },
-  {
-    id: "food.pizza",
-    label: "Pizzaria",
-    description: "Sabores, forno e delivery",
-    group: "Food",
-    modules: [
-      { id: "menu", recommended: true },
-      { id: "modifiers", recommended: true },
       { id: "delivery", recommended: true },
-      { id: "kds", recommended: true },
       { id: "counter", recommended: true },
+      { id: "inventory", recommended: true },
     ],
   },
   {
     id: "pet.retail",
     label: "Petshop",
-    description: "Produtos, banho e tosa",
+    description: "Produtos, banho, tosa e agenda",
     group: "Pet",
     modules: [
       { id: "catalog", recommended: true },
@@ -329,87 +277,6 @@ export const INDUSTRIES: IndustryDef[] = [
       { id: "pets", recommended: true },
       { id: "inventory", recommended: true },
       { id: "counter", recommended: true },
-    ],
-  },
-  {
-    id: "pet.clinic",
-    label: "Clínica veterinária",
-    description: "Prontuário, agenda e faturamento",
-    group: "Pet",
-    modules: [
-      { id: "pets", recommended: true },
-      { id: "scheduling", recommended: true },
-      { id: "services", recommended: true },
-      { id: "catalog", recommended: true },
-      { id: "inventory", recommended: true },
-      { id: "billing", recommended: true },
-    ],
-  },
-  {
-    id: "retail.liquor",
-    label: "Adega / Bebidas",
-    description: "Estoque, restrição etária e B2B",
-    group: "Retail",
-    modules: [
-      { id: "catalog", recommended: true },
-      { id: "age_gate", recommended: true },
-      { id: "inventory", recommended: true },
-      { id: "b2b" },
-      { id: "counter", recommended: true },
-      { id: "delivery" },
-    ],
-  },
-  {
-    id: "retail.grocery",
-    label: "Mercado / Minimercado",
-    description: "PDV, estoque e promoções",
-    group: "Retail",
-    modules: [
-      { id: "catalog", recommended: true },
-      { id: "inventory", recommended: true },
-      { id: "counter", recommended: true },
-      { id: "promotions", recommended: true },
-      { id: "suppliers" },
-    ],
-  },
-  {
-    id: "retail.fashion",
-    label: "Loja de roupas",
-    description: "Grade, estoque e omnichannel",
-    group: "Retail",
-    modules: [
-      { id: "catalog", recommended: true },
-      { id: "inventory", recommended: true },
-      { id: "counter", recommended: true },
-      { id: "fitting" },
-      { id: "ecommerce" },
-    ],
-  },
-  {
-    id: "services.beauty",
-    label: "Barbearia / Salão",
-    description: "Agenda por profissional e fidelidade",
-    group: "Services",
-    modules: [
-      { id: "services", recommended: true },
-      { id: "scheduling", recommended: true },
-      { id: "catalog" },
-      { id: "loyalty", recommended: true },
-      { id: "counter", recommended: true },
-    ],
-  },
-  {
-    id: "services.auto",
-    label: "Oficina / Auto center",
-    description: "OS, peças e agenda de boxes",
-    group: "Services",
-    modules: [
-      { id: "services", recommended: true },
-      { id: "vehicles", recommended: true },
-      { id: "catalog", recommended: true },
-      { id: "inventory", recommended: true },
-      { id: "scheduling", recommended: true },
-      { id: "billing", recommended: true },
     ],
   },
 ]
@@ -426,6 +293,13 @@ export function recommendedModulesFor(industryId: IndustryId): ModuleId[] {
     .map((module) => module.id)
 }
 
+/** Core + módulos recomendados do segmento. */
+export function defaultModulesFor(industryId: IndustryId): ModuleId[] {
+  const coreIds = CORE_MODULES.map((module) => module.id)
+  const recommended = recommendedModulesFor(industryId)
+  return Array.from(new Set([...coreIds, ...recommended]))
+}
+
 export function slugify(value: string): string {
   return value
     .normalize("NFD")
@@ -434,4 +308,17 @@ export function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 48)
+}
+
+/**
+ * Gera identifier a partir do nome.
+ * `attempt` > 1 acrescenta sufixo (-2, -3…) quando o slug já existe.
+ */
+export function allocateIdentifier(name: string, attempt = 1): string {
+  const base = slugify(name) || "loja"
+  if (attempt <= 1) return base.slice(0, 50)
+
+  const suffix = `-${attempt}`
+  const maxBase = Math.max(2, 50 - suffix.length)
+  return `${base.slice(0, maxBase)}${suffix}`
 }

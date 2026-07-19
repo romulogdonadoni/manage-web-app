@@ -5,6 +5,8 @@ declare module "next-auth" {
     accessToken?: string
     idToken?: string
     tenant?: string
+    /** Set when Auth0 refresh_token exchange fails — client should re-login. */
+    error?: string
     user: DefaultSession["user"] & {
       id?: string
     }
@@ -18,5 +20,6 @@ declare module "@auth/core/jwt" {
     refreshToken?: string
     expiresAt?: number
     tenant?: string
+    error?: string
   }
 }

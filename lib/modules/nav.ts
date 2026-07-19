@@ -50,10 +50,10 @@ export const MODULE_ROUTES: ModuleRoute[] = [
     moduleId: "auth",
     slug: "users",
     href: "/users",
-    label: "Usuários",
-    description: "Contas, roles e acesso do realm",
+    label: "Funcionários",
+    description: "Equipe, roles e convites do tenant",
     icon: Users,
-    nav: true,
+    nav: false,
   },
   {
     moduleId: "catalog",
