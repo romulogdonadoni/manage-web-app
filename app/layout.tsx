@@ -29,6 +29,11 @@ export default function RootLayout({
       className={cn("font-sans antialiased", fontSans.variable, fontMono.variable)}
     >
       <body>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var k=${JSON.stringify("whitelabel.sidebar.collapsed")};var ls=localStorage.getItem(k);if(ls===null)return;var has=document.cookie.split("; ").some(function(c){return c.indexOf(k+"=")===0});if(has)return;document.cookie=k+"="+ls+"; path=/; max-age=31536000; SameSite=Lax";if(ls==="true"&&sessionStorage.getItem("wl-sidebar-ck")!=="1"){sessionStorage.setItem("wl-sidebar-ck","1");location.reload()}}catch(e){}})();`,
+          }}
+        />
         <AuthSessionProvider>
           <ThemeProvider>
             {children}

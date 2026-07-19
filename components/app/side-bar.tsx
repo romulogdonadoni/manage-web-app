@@ -24,7 +24,13 @@ import { useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react"
 import { toast } from "sonner"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -61,6 +67,11 @@ import {
   loadTenantProfile,
   type TenantProfile,
 } from "@/lib/modules/storage"
+import {
+  isSidebarCollapsedValue,
+  persistSidebarCollapsed,
+  SIDEBAR_COLLAPSED_KEY,
+} from "@/lib/sidebar-preference"
 import { useCurrentStore } from "@/lib/store/current-store-context"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "../ui/scroll-area"
@@ -73,8 +84,6 @@ function initialsFrom(name?: string | null, email?: string | null) {
   }
   return source.slice(0, 2).toUpperCase()
 }
-
-const STORAGE_KEY = "whitelabel.sidebar.collapsed"
 
 const shellNav = [
   {
@@ -109,23 +118,27 @@ const shellNav = [
   },
 ] as const
 
-export default function SideBar() {
+export default function SideBar({
+  initialCollapsed = false,
+}: {
+  initialCollapsed?: boolean
+}) {
   const pathname = usePathname()
   const { data: session } = useSession()
   const { data: store } = useCurrentStore()
   const { resolvedTheme, setTheme } = useTheme()
-  const [collapsed, setCollapsed] = useState(false)
-  const [hydrated, setHydrated] = useState(false)
+  const [collapsed, setCollapsed] = useState(initialCollapsed)
   const [profile, setProfile] = useState<TenantProfile | null>(null)
   const [routeTenant, setRouteTenant] = useState<string | null>(null)
   const [tenants, setTenants] = useState<TenantDto[]>([])
   const [switchingTenant, setSwitchingTenant] = useState<string | null>(null)
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY)
-    if (stored === "true") setCollapsed(true)
+  useLayoutEffect(() => {
     setProfile(loadTenantProfile())
-    setHydrated(true)
+    const fromLs = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
+    const value = fromLs === null ? collapsed : isSidebarCollapsedValue(fromLs)
+    persistSidebarCollapsed(value)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed cookie once; avoid setState flicker
   }, [])
 
   useEffect(() => {
@@ -133,10 +146,10 @@ export default function SideBar() {
     setRouteTenant(resolveTenantFromPath(window.location.pathname))
   }, [pathname])
 
-  useEffect(() => {
-    if (!hydrated) return
-    window.localStorage.setItem(STORAGE_KEY, String(collapsed))
-  }, [collapsed, hydrated])
+  function updateCollapsed(next: boolean) {
+    setCollapsed(next)
+    persistSidebarCollapsed(next)
+  }
 
   const loadTenants = useCallback(async () => {
     if (!session?.accessToken) {
@@ -266,50 +279,74 @@ export default function SideBar() {
       window.location.assign(withTenantPrefix(id, "/dashboard"))
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Não foi possível trocar de empresa."
+        err instanceof Error
+          ? err.message
+          : "Não foi possível trocar de empresa."
       )
       setSwitchingTenant(null)
     }
   }
 
+  const tenantLogo = (
+    <span className="relative block aspect-square size-8 shrink-0 overflow-hidden rounded-xl bg-sidebar-primary text-sidebar-primary-foreground">
+      {storeLogoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={storeLogoUrl}
+          alt=""
+          className="absolute inset-0 size-full object-cover"
+        />
+      ) : (
+        <span className="flex size-full items-center justify-center text-[11px] font-bold tracking-wide">
+          WL
+        </span>
+      )}
+    </span>
+  )
+
   const tenantSwitcher = (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          collapsed ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Trocar empresa"
-              className="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            />
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-label="Trocar empresa"
-              className="mt-2 h-auto w-full min-w-0 justify-start gap-2 px-2 py-1.5 text-left text-muted-foreground hover:text-sidebar-accent-foreground"
-            />
-          )
+          <Button
+            type="button"
+            variant="ghost"
+            size={collapsed ? "icon-sm" : "sm"}
+            aria-label={`Trocar empresa (${storeName})`}
+            aria-haspopup="menu"
+            className={cn(
+              "min-w-0 justify-start gap-2.5 rounded-2xl text-left hover:bg-sidebar-accent",
+              collapsed
+                ? "aspect-square size-9 shrink-0 overflow-hidden p-0.5"
+                : "h-auto w-full px-2 py-2"
+            )}
+          />
         }
       >
-        {collapsed ? (
-          <ChevronsUpDown className="size-4" />
-        ) : (
+        {tenantLogo}
+        {!collapsed ? (
           <>
-            <Building2 className="size-3.5 shrink-0" />
-            <span className="min-w-0 flex-1 truncate text-xs">
-              Trocar empresa
+            <span className="min-w-0 flex-1 overflow-hidden">
+              <span className="block truncate text-sm font-medium text-sidebar-foreground">
+                {storeName}
+              </span>
+              {industryLabel ? (
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  {industryLabel}
+                </span>
+              ) : (
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  /{activeTenant ?? "…"}
+                </span>
+              )}
             </span>
-            <ChevronsUpDown className="size-3.5 shrink-0 opacity-70" />
+            <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground opacity-70" />
           </>
-        )}
+        ) : null}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side={collapsed ? "right" : "bottom"}
-        align={collapsed ? "start" : "start"}
+        align="start"
         sideOffset={8}
         className="w-64 max-w-[min(16rem,calc(100vw-1.5rem))]"
       >
@@ -327,8 +364,7 @@ export default function SideBar() {
               const isCurrent =
                 !!activeTenant &&
                 tenant.identifier.toLowerCase() === activeTenant.toLowerCase()
-              const busy =
-                switchingTenant === tenant.identifier.toLowerCase()
+              const busy = switchingTenant === tenant.identifier.toLowerCase()
 
               return (
                 <DropdownMenuItem
@@ -386,101 +422,50 @@ export default function SideBar() {
     </DropdownMenu>
   )
 
+  const collapseToggle = (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon-xs"
+      aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+      aria-expanded={!collapsed}
+      onClick={() => updateCollapsed(!collapsed)}
+      className="absolute -top-3 -right-3 z-20 size-6 rounded-full border-sidebar-border bg-background shadow-sm hover:bg-muted"
+    >
+      {collapsed ? <ChevronRight /> : <ChevronLeft />}
+    </Button>
+  )
+
   return (
     <TooltipProvider delay={200}>
       <aside
         data-collapsed={collapsed}
         className={cn(
-          "flex h-full shrink-0 flex-col rounded-4xl text-sidebar-foreground transition-[width] duration-200 ease-out",
+          "relative flex h-full shrink-0 flex-col rounded-4xl text-sidebar-foreground transition-[width] duration-200 ease-out",
           collapsed ? "w-18" : "w-64"
         )}
       >
         <div
           className={cn(
-            "flex items-start pt-5 pb-5",
-            collapsed ? "flex-col items-center gap-3 px-2" : "px-5"
+            "flex flex-col pt-5 pb-5",
+            collapsed ? "items-center gap-3 px-2" : "gap-35"
           )}
         >
-          {!collapsed ? (
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <p className="truncate text-[15px] font-semibold tracking-[0.18em] uppercase">
-                <Link href="/" className="hover:text-primary">
-                  WhiteLabel
-                </Link>
-              </p>
-              <div className="mt-1.5 flex min-w-0 items-center gap-2">
-                {storeLogoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={storeLogoUrl}
-                    alt=""
-                    className="size-6 shrink-0 rounded-lg object-cover"
-                  />
-                ) : null}
-                <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                  {storeName}
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-xs"
-                  aria-label="Recolher menu"
-                  aria-expanded={!collapsed}
-                  onClick={() => setCollapsed(true)}
-                  className="ml-auto shrink-0 rounded-full border-sidebar-border"
-                >
-                  <ChevronLeft />
-                </Button>
-              </div>
-              {industryLabel ? (
-                <p className="mt-1 truncate text-[11px] text-muted-foreground/80">
-                  {industryLabel}
-                </p>
-              ) : null}
-              {tenantSwitcher}
-            </div>
-          ) : (
-            <>
-              {tenantSwitcher}
-              <div className="flex size-9 items-center justify-center overflow-hidden rounded-2xl bg-sidebar-primary text-sidebar-primary-foreground">
-                {storeLogoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={storeLogoUrl}
-                    alt=""
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <span className="text-xs font-bold tracking-wide">WL</span>
-                )}
-              </div>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Expandir menu"
-                      aria-expanded={!collapsed}
-                      onClick={() => setCollapsed(false)}
-                      className="text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                    />
-                  }
-                >
-                  <ChevronRight />
-                </TooltipTrigger>
-                <TooltipContent side="right" sideOffset={8}>
-                  Expandir menu
-                </TooltipContent>
-              </Tooltip>
-            </>
-          )}
+          {/* {!collapsed ? (
+            <p className="truncate px-2 text-[15px] font-semibold tracking-[0.18em] uppercase">
+              <Link href="/" className="hover:text-primary">
+                WhiteLabel
+              </Link>
+            </p>
+          ) : null} */}
+          {tenantSwitcher}
         </div>
+
+        <Separator className="relative">{collapseToggle}</Separator>
 
         <ScrollArea
           className={cn(
-            "flex flex-1 flex-col gap-0.5 overflow-y-auto pb-4",
+            "flex flex-1 flex-col gap-0.5 overflow-y-auto pb-4 mt-4",
             collapsed ? "items-center px-2" : "px-3"
           )}
         >
@@ -651,8 +636,8 @@ export default function SideBar() {
                   onClick={toggleTheme}
                   className="cursor-pointer"
                 >
-                  {hydrated && isDark ? <Sun /> : <Moon />}
-                  {hydrated && isDark ? "Tema claro" : "Tema escuro"}
+                  {isDark ? <Sun /> : <Moon />}
+                  {isDark ? "Tema claro" : "Tema escuro"}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   render={<Link href="/guide" />}
