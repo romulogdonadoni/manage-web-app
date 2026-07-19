@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react"
 import { usePathname } from "next/navigation"
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useRef } from "react"
 
 import { getCurrentTenant } from "@/lib/api/tenants"
 import { resolveTenantFromPath } from "@/lib/auth/tenant-host"
@@ -15,16 +15,20 @@ export function SyncCurrentTenant() {
   const pathname = usePathname()
   const { data: session, status, update } = useSession()
   const { setData, setRefreshHandler } = useCurrentStore()
+  const activatingTenantRef = useRef<string | null>(null)
+  const lastSyncedKeyRef = useRef<string | null>(null)
 
   const refresh = useCallback(async () => {
     if (status !== "authenticated") {
       setData(null)
+      lastSyncedKeyRef.current = null
       return
     }
 
     const accessToken = session?.accessToken
     if (!accessToken) {
       setData(null)
+      lastSyncedKeyRef.current = null
       return
     }
 
@@ -35,6 +39,11 @@ export function SyncCurrentTenant() {
     let tenant = pathTenant || session?.tenant || null
 
     if (pathTenant && pathTenant !== session?.tenant) {
+      if (activatingTenantRef.current === pathTenant) {
+        return
+      }
+
+      activatingTenantRef.current = pathTenant
       try {
         const res = await fetch("/api/auth/tenant", {
           method: "POST",
@@ -47,19 +56,29 @@ export function SyncCurrentTenant() {
         }
       } catch (error) {
         console.error("Failed to activate tenant from route:", error)
+      } finally {
+        activatingTenantRef.current = null
       }
     }
 
     if (!tenant) {
       setData(null)
+      lastSyncedKeyRef.current = null
+      return
+    }
+
+    const syncKey = `${tenant}:${accessToken.slice(0, 12)}`
+    if (lastSyncedKeyRef.current === syncKey) {
       return
     }
 
     try {
       const current = await getCurrentTenant(accessToken, tenant)
+      lastSyncedKeyRef.current = syncKey
       setData(current)
     } catch (error) {
       console.error("Failed to sync current tenant/user with API:", error)
+      lastSyncedKeyRef.current = null
       setData(null)
     }
   }, [
@@ -72,7 +91,10 @@ export function SyncCurrentTenant() {
   ])
 
   useEffect(() => {
-    setRefreshHandler(refresh)
+    setRefreshHandler(() => {
+      lastSyncedKeyRef.current = null
+      return refresh()
+    })
     return () => setRefreshHandler(null)
   }, [refresh, setRefreshHandler])
 
