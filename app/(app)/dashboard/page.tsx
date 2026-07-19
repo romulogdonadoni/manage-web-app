@@ -44,21 +44,21 @@ const stats = [
     icon: Building2,
   },
   {
-    label: "Usuários",
+    label: "Funcionários",
     value: "148",
     hint: "JIT sincronizados",
     icon: Users,
   },
   {
-    label: "Realms Keycloak",
-    value: "12",
-    hint: "1 por tenant",
+    label: "Auth0",
+    value: "1",
+    hint: "Tenant IdP compartilhado",
     icon: KeyRound,
   },
   {
     label: "Bancos SQL",
-    value: "13",
-    hint: "1 catálogo + 12 tenants",
+    value: "1",
+    hint: "Catálogo compartilhado",
     icon: Database,
   },
   {
@@ -182,7 +182,7 @@ const activity = [
     type: "user",
   },
   {
-    title: "Realm beta atualizado no Keycloak",
+    title: "Action Auth0: email no access token",
     time: "Há 5 horas",
     type: "auth",
   },
@@ -213,43 +213,43 @@ const environments = [
   {
     name: "Development",
     api: "http://localhost:5247",
-    keycloak: "http://localhost:8080",
+    auth0: "https://YOUR_TENANT.us.auth0.com",
     sql: "localhost:1433",
     status: "Online",
   },
   {
     name: "Staging",
     api: "https://api.staging.whitelabel.local",
-    keycloak: "https://auth.staging.whitelabel.local",
+    auth0: "https://whitelabel-staging.us.auth0.com",
     sql: "sql-staging.internal",
     status: "Online",
   },
   {
     name: "Production",
     api: "https://api.whitelabel.app",
-    keycloak: "https://auth.whitelabel.app",
+    auth0: "https://whitelabel.us.auth0.com",
     sql: "sql-prod.internal",
     status: "Degraded",
   },
 ] as const
 
 const checklist = [
-  "Provisionar tenant cria banco + realm automaticamente",
-  "JWT validado por realm do tenant (X-Tenant-Id)",
-  "JIT cria User no banco no primeiro login",
-  "DELETE /tenants remove realm, banco e catálogo",
+  "Provisionar tenant cria registro no catálogo + membership",
+  "JWT validado no Auth0 (issuer + audience)",
+  "JIT cria User no banco no primeiro login (ExternalId = sub)",
+  "DELETE /tenants remove catálogo e vínculos",
   "Sidebar retrátil com tema claro/escuro",
   "Dashboard mock para validar scroll e layout",
-  "Connection strings por template no appsettings",
-  "CatalogDbContext separado do TenantDbContext",
+  "Tenant lógico via path + X-Tenant-Id",
+  "Refresh token Auth0 na sessão Auth.js",
 ] as const
 
 const notes = [
-  "Cada tenant possui banco SQL dedicado e realm Keycloak próprio. O catálogo whitelabel guarda apenas o mapa de tenants.",
-  "A API resolve o tenant pelo header X-Tenant-Id, valida o JWT contra o realm do tenant e faz upsert do usuário no primeiro acesso (JIT).",
+  "Tenants lógicos no banco compartilhado; um único Auth0 tenant.",
+  "A API resolve o tenant pelo header X-Tenant-Id, valida o JWT contra o Auth0 e faz upsert do usuário no primeiro acesso (JIT por ExternalId).",
   "No frontend, o shell usa sidebar retrátil com tokens de tema (sidebar-*) para light e dark mode.",
   "Este dashboard é propositalmente longo para exercitar o ScrollArea do layout.",
-  "Próximos passos: tela de tenants na API, login OIDC por realm e create user orquestrado.",
+  "Login Universal Login e branding ficam no Auth0 Dashboard.",
 ] as const
 
 function StatusBadge({ status }: { status: string }) {
@@ -401,8 +401,8 @@ export default function Page() {
                     </div>
                     <Separator />
                     <div>
-                      <p className="font-medium text-foreground/70">Keycloak</p>
-                      <p className="mt-0.5 break-all">{env.keycloak}</p>
+                      <p className="font-medium text-foreground/70">Auth0</p>
+                      <p className="mt-0.5 break-all">{env.auth0}</p>
                     </div>
                     <Separator />
                     <div>

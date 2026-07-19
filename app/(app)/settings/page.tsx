@@ -1,6 +1,7 @@
 "use client"
 
 import { ModuleShell } from "@/components/app/module-shell"
+import { StoreProfileCard } from "@/components/app/store-profile-card"
 
 import {
   CreditCard,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -50,7 +52,6 @@ import {
 export default function SettingsPage() {
   const [profile, setProfile] = useState<TenantProfile | null>(null)
   const [hydrated, setHydrated] = useState(false)
-  const [flash, setFlash] = useState<string | null>(null)
 
   useEffect(() => {
     setProfile(loadTenantProfile())
@@ -89,7 +90,7 @@ export default function SettingsPage() {
 
     setProfile(result.profile)
     const module = getModule(moduleId)
-    setFlash(
+    toast.success(
       action === "added"
         ? `${module.label} adicionado (+${formatBRL(module.priceMonthly)}/mês)`
         : `${module.label} removido (−${formatBRL(module.priceMonthly)}/mês)`
@@ -100,18 +101,22 @@ export default function SettingsPage() {
 
   if (!profile || !industry) {
     return (
-    <ModuleShell title={"Configurações"} description={"Módulos da assinatura e preferências"}>
+    <ModuleShell
+      title="Perfil da loja"
+      description="Logo, módulos da assinatura e preferências da empresa"
+    >
       <div className="flex flex-col gap-6">
+        <StoreProfileCard />
         <Card size="sm" className="shadow-none">
           <CardHeader>
-            <CardTitle>Complete o onboarding</CardTitle>
+            <CardTitle>Configure a assinatura</CardTitle>
             <CardDescription>
-              Defina o segmento e os módulos antes de gerenciar a assinatura
+              Crie uma empresa para definir o segmento e os módulos
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button nativeButton={false} render={<Link href="/onboarding" />}>
-              Ir para onboarding
+            <Button nativeButton={false} render={<Link href="/create" />}>
+              Nova empresa
             </Button>
           </CardContent>
         </Card>
@@ -121,7 +126,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <ModuleShell title={"Configurações"} description={"Módulos da assinatura e preferências"}>
+    <ModuleShell
+      title="Perfil da loja"
+      description="Logo, módulos da assinatura e preferências da empresa"
+    >
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -169,11 +177,7 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {flash ? (
-        <Card size="sm" className="border-success/30 bg-success/5 shadow-none">
-          <CardContent className="py-3 text-sm">{flash}</CardContent>
-        </Card>
-      ) : null}
+      <StoreProfileCard />
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <Card size="sm" className="shadow-none">

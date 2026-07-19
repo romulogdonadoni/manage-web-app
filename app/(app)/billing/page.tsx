@@ -122,12 +122,12 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle>Nenhuma assinatura ativa</CardTitle>
             <CardDescription>
-              Conclua o onboarding para gerar o plano e as faturas
+              Conclua a criação da empresa para gerar o plano e as faturas
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button nativeButton={false} render={<Link href="/onboarding" />}>
-              Começar onboarding
+            <Button nativeButton={false} render={<Link href="/create" />}>
+              Começar
             </Button>
           </CardContent>
         </Card>
