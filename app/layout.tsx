@@ -2,6 +2,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 
 import { AuthSessionProvider } from "@/components/auth/session-provider"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
 import "./globals.css"
@@ -29,7 +30,10 @@ export default function RootLayout({
     >
       <body>
         <AuthSessionProvider>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            {children}
+            <Toaster richColors closeButton position="top-right" />
+          </ThemeProvider>
         </AuthSessionProvider>
       </body>
     </html>
