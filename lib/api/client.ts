@@ -28,6 +28,7 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { accessToken, tenantId, headers: initHeaders, ...rest } = options
   const headers = new Headers(initHeaders)
+  const baseUrl = getApiBaseUrl()
 
   if (accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`)
@@ -39,7 +40,15 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json")
   }
 
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  // Ngrok free interstitial breaks JSON/CORS unless this header is present.
+  if (
+    /ngrok/i.test(baseUrl) &&
+    !headers.has("ngrok-skip-browser-warning")
+  ) {
+    headers.set("ngrok-skip-browser-warning", "true")
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, {
     ...rest,
     headers,
   })
