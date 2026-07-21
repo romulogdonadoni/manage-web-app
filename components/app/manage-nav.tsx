@@ -148,7 +148,9 @@ export function ManageNav() {
             variant="ghost"
             size="icon-sm"
             className="text-muted-foreground"
-            aria-label={isDark ? "Ativar tema claro" : "Ativar tema escuro"}
+            aria-label={
+              themeReady && isDark ? "Ativar tema claro" : "Ativar tema escuro"
+            }
             onClick={() => setTheme(isDark ? "light" : "dark")}
           >
             {themeReady && isDark ? (

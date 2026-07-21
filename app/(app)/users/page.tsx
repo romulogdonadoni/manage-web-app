@@ -1,12 +1,6 @@
 "use client"
 
-import {
-  Copy,
-  Mail,
-  Pencil,
-  UserPlus,
-  Users,
-} from "lucide-react"
+import { Copy, Mail, Pencil, UserPlus, Users } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -204,7 +198,7 @@ function MenuAccessPicker({
 
       <Separator />
 
-      <ScrollArea className="min-h-0 flex-1 pr-3">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-5 pb-2">
           {grouped.map((group) => (
             <div key={group.title} className="space-y-1.5">
@@ -317,7 +311,12 @@ export default function UsersPage() {
       (m) => m.role === "owner" || m.role === "admin"
     ).length
     const operators = members.filter((m) => m.role === "member").length
-    return { total: members.length, admins, operators, pending: pendingInvites.length }
+    return {
+      total: members.length,
+      admins,
+      operators,
+      pending: pendingInvites.length,
+    }
   }, [members, pendingInvites.length])
 
   function openEdit(member: TenantMemberDto) {
@@ -532,7 +531,9 @@ export default function UsersPage() {
       return member.role === "admin" ? "Padrão admin" : "Sem menus"
     }
     const labels = editableMenuOptions()
-      .filter((o) => member.allowedMenus!.includes(o.key) && o.key !== "dashboard")
+      .filter(
+        (o) => member.allowedMenus!.includes(o.key) && o.key !== "dashboard"
+      )
       .map((o) => o.label)
     if (labels.length === 0) return "Só dashboard"
     if (labels.length <= 2) return labels.join(", ")
@@ -576,7 +577,9 @@ export default function UsersPage() {
           {summary.pending > 0 ? (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-foreground">
               <Mail className="size-3.5" />
-              <span className="font-medium tabular-nums">{summary.pending}</span>
+              <span className="font-medium tabular-nums">
+                {summary.pending}
+              </span>
               convite{summary.pending === 1 ? "" : "s"}
             </span>
           ) : null}
@@ -584,7 +587,9 @@ export default function UsersPage() {
 
         {loadError ? (
           <Alert variant="destructive">
-            <AlertDescription className="break-all">{loadError}</AlertDescription>
+            <AlertDescription className="break-all">
+              {loadError}
+            </AlertDescription>
           </Alert>
         ) : null}
 
@@ -680,7 +685,9 @@ export default function UsersPage() {
                             {isOwner ? "Editar" : "Menus"}
                           </Button>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-xs text-muted-foreground">
+                            —
+                          </span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -709,7 +716,9 @@ export default function UsersPage() {
                   className="flex flex-wrap items-center gap-3 rounded-2xl border bg-muted/20 px-3 py-2.5"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{invite.email}</p>
+                    <p className="truncate text-sm font-medium">
+                      {invite.email}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {roleLabel(invite.role)}
                       {invite.allowedMenus?.length
@@ -769,14 +778,16 @@ export default function UsersPage() {
                   : "Ajuste o acesso aos menus e, se for owner, a senha de gerente."}
               </SheetDescription>
             </SheetHeader>
-            <ScrollArea className="min-h-0 flex-1 px-6">
-              <div className="space-y-6 pb-4">
+            <Separator />
+            <ScrollArea className="min-h-0 flex-1">
+              <div className="space-y-6 p-6">
                 {editingMember && editingMember.role !== "owner" ? (
                   <div className="space-y-3">
                     <div>
                       <p className="text-sm font-medium">Menus</p>
                       <p className="text-xs text-muted-foreground">
-                        Escolha um atalho ou marque só o que essa pessoa precisa.
+                        Escolha um atalho ou marque só o que essa pessoa
+                        precisa.
                       </p>
                     </div>
                     <MenuAccessPicker
@@ -796,9 +807,7 @@ export default function UsersPage() {
 
                 {isOwner && editingMember ? (
                   <div className="space-y-3">
-                    {editingMember.role !== "owner" ? (
-                      <Separator />
-                    ) : null}
+                    {editingMember.role !== "owner" ? <Separator /> : null}
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         <p className="text-sm font-medium">Senha de gerente</p>
@@ -829,7 +838,9 @@ export default function UsersPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="manager-pin-confirm">Confirmar senha</Label>
+                      <Label htmlFor="manager-pin-confirm">
+                        Confirmar senha
+                      </Label>
                       <Input
                         id="manager-pin-confirm"
                         type="password"

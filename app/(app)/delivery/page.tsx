@@ -1,286 +1,380 @@
-import { ModuleShell } from "@/components/app/module-shell"
-import {
-  Bike,
-  Clock,
-  MapPin,
-  Navigation,
-  Package,
-  Truck,
-} from "lucide-react"
+"use client"
 
-import { ModuleStats } from "@/components/app/module-stats"
+import { MapPin, Trash2 } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
+
+import { DeliveryAreasMap } from "@/components/app/delivery-areas-map"
+import { ModuleShell } from "@/components/app/module-shell"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemMedia,
-  ItemTitle,
-} from "@/components/ui/item"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-
-const stats = [
-  {
-    label: "Em rota",
-    value: "4",
-    hint: "1 atrasado · 3 no prazo",
-    icon: Bike,
-  },
-  {
-    label: "Tempo médio",
-    value: "28 min",
-    hint: "Meta: 35 min",
-    icon: Clock,
-  },
-  {
-    label: "Entregas hoje",
-    value: "31",
-    hint: "+8 vs ontem",
-    icon: Package,
-  },
-  {
-    label: "Zonas ativas",
-    value: "5",
-    hint: "Cobertura no raio urbano",
-    icon: MapPin,
-  },
-]
-
-const activeDeliveries = [
-  {
-    id: "#1040",
-    customer: "Carla Dias",
-    address: "Rua das Palmeiras, 412 — Jardim Norte",
-    status: "A caminho",
-    eta: "12 min",
-    driver: "Marcos",
-    zone: "Zona Norte",
-  },
-  {
-    id: "#1037",
-    customer: "Fábio Nunes",
-    address: "Av. Central, 88 — Centro",
-    status: "Preparando saída",
-    eta: "18 min",
-    driver: "Ana",
-    zone: "Centro",
-  },
-  {
-    id: "#1034",
-    customer: "Isabela Costa",
-    address: "Travessa do Mercado, 15 — Vila Sul",
-    status: "Atrasado",
-    eta: "+6 min",
-    driver: "Pedro",
-    zone: "Zona Sul",
-  },
-  {
-    id: "#1032",
-    customer: "João Pereira",
-    address: "Alameda dos Ipês, 220 — Leste",
-    status: "Entregue",
-    eta: "Concluído",
-    driver: "Marcos",
-    zone: "Zona Leste",
-  },
-] as const
-
-const zones = [
-  {
-    name: "Centro",
-    fee: "R$ 4,90",
-    eta: "20–30 min",
-    neighborhoods: ["Centro", "República", "Mercado Velho"],
-    active: 2,
-  },
-  {
-    name: "Zona Norte",
-    fee: "R$ 6,90",
-    eta: "30–40 min",
-    neighborhoods: ["Jardim Norte", "Parque Verde", "Alto da Serra"],
-    active: 1,
-  },
-  {
-    name: "Zona Sul",
-    fee: "R$ 7,90",
-    eta: "35–45 min",
-    neighborhoods: ["Vila Sul", "Bosque", "Riviera"],
-    active: 1,
-  },
-  {
-    name: "Zona Leste",
-    fee: "R$ 5,90",
-    eta: "25–35 min",
-    neighborhoods: ["Leste", "Industrial", "Campo Belo"],
-    active: 0,
-  },
-  {
-    name: "Zona Oeste",
-    fee: "R$ 8,90",
-    eta: "40–50 min",
-    neighborhoods: ["Oeste", "Pinheiros", "Morro Alto"],
-    active: 0,
-  },
-] as const
-
-function DeliveryStatusBadge({ status }: { status: string }) {
-  const variant =
-    status === "Entregue"
-      ? "success"
-      : status === "A caminho"
-        ? "info"
-        : status === "Atrasado"
-          ? "destructive"
-          : "warning"
-
-  return <Badge variant={variant}>{status}</Badge>
-}
+import {
+  createDeliveryAreaId,
+  formatFeeBrl,
+  loadDeliveryAreas,
+  nextAreaColor,
+  parseFeeToCents,
+  saveDeliveryAreas,
+  type DeliveryArea,
+  type LatLngPoint,
+} from "@/lib/modules/delivery-areas"
+import { useCurrentStore } from "@/lib/store/current-store-context"
+import { cn } from "@/lib/utils"
 
 export default function DeliveryPage() {
+  const { data: store } = useCurrentStore()
+  const tenantId = store?.identifier ?? null
+
+  const [areas, setAreas] = useState<DeliveryArea[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [drawing, setDrawing] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
+  const [dirty, setDirty] = useState(false)
+
+  const [name, setName] = useState("")
+  const [feeInput, setFeeInput] = useState("0,00")
+  const [etaMin, setEtaMin] = useState("20")
+  const [etaMax, setEtaMax] = useState("40")
+  const [active, setActive] = useState(true)
+
+  useEffect(() => {
+    if (!tenantId) {
+      setAreas([])
+      setSelectedId(null)
+      setHydrated(false)
+      setDirty(false)
+      return
+    }
+
+    const loaded = loadDeliveryAreas(tenantId)
+    setAreas(loaded)
+    setSelectedId(loaded[0]?.id ?? null)
+    setDrawing(false)
+    setDirty(false)
+    setHydrated(true)
+  }, [tenantId])
+
+  const selected = useMemo(
+    () => areas.find((area) => area.id === selectedId) ?? null,
+    [areas, selectedId]
+  )
+
+  useEffect(() => {
+    if (!selected) {
+      setName("")
+      setFeeInput("0,00")
+      setEtaMin("20")
+      setEtaMax("40")
+      setActive(true)
+      return
+    }
+
+    setName(selected.name)
+    setFeeInput((selected.feeCents / 100).toFixed(2).replace(".", ","))
+    setEtaMin(String(selected.etaMinutesMin))
+    setEtaMax(String(selected.etaMinutesMax))
+    setActive(selected.active)
+  }, [selected])
+
+  function markDirty(next: DeliveryArea[]) {
+    setAreas(next)
+    setDirty(true)
+  }
+
+  function handlePolygonComplete(path: LatLngPoint[]) {
+    if (path.length < 3) {
+      toast.error("O polígono precisa de pelo menos 3 pontos.")
+      setDrawing(false)
+      return
+    }
+
+    const area: DeliveryArea = {
+      id: createDeliveryAreaId(),
+      name: `Área ${areas.length + 1}`,
+      feeCents: 690,
+      etaMinutesMin: 30,
+      etaMinutesMax: 45,
+      active: true,
+      path,
+      color: nextAreaColor(areas),
+    }
+
+    const next = [...areas, area]
+    markDirty(next)
+    setSelectedId(area.id)
+    setDrawing(false)
+    toast.success("Área desenhada. Ajuste os dados e salve.")
+  }
+
+  function handlePathChange(id: string, path: LatLngPoint[]) {
+    if (path.length < 3) return
+    markDirty(
+      areas.map((area) => (area.id === id ? { ...area, path } : area))
+    )
+  }
+
+  function handleApplySelected() {
+    if (!selected) return
+
+    const min = Number.parseInt(etaMin, 10)
+    const max = Number.parseInt(etaMax, 10)
+    if (Number.isNaN(min) || Number.isNaN(max) || min < 0 || max < min) {
+      toast.error("Informe um intervalo de ETA válido.")
+      return
+    }
+
+    markDirty(
+      areas.map((area) =>
+        area.id === selected.id
+          ? {
+              ...area,
+              name: name.trim() || area.name,
+              feeCents: parseFeeToCents(feeInput),
+              etaMinutesMin: min,
+              etaMinutesMax: max,
+              active,
+            }
+          : area
+      )
+    )
+  }
+
+  function handleSave() {
+    if (!tenantId) return
+
+    const min = Number.parseInt(etaMin, 10)
+    const max = Number.parseInt(etaMax, 10)
+    if (selected) {
+      if (Number.isNaN(min) || Number.isNaN(max) || min < 0 || max < min) {
+        toast.error("Informe um intervalo de ETA válido.")
+        return
+      }
+    }
+
+    const next = areas.map((area) =>
+      selected && area.id === selected.id
+        ? {
+            ...area,
+            name: name.trim() || area.name,
+            feeCents: parseFeeToCents(feeInput),
+            etaMinutesMin: min,
+            etaMinutesMax: max,
+            active,
+          }
+        : area
+    )
+
+    saveDeliveryAreas(tenantId, next)
+    setAreas(next)
+    setDirty(false)
+    toast.success("Áreas de entrega salvas neste dispositivo.")
+  }
+
+  function handleRemove() {
+    if (!selected) return
+    const next = areas.filter((area) => area.id !== selected.id)
+    markDirty(next)
+    setSelectedId(next[0]?.id ?? null)
+    toast.message("Área removida. Salve para confirmar.")
+  }
+
   return (
-    <ModuleShell title={"Delivery"} description={"Entregas, taxas e áreas"}>
-      <div className="flex flex-col gap-6">
-      <ModuleStats stats={stats} />
+    <ModuleShell
+      title="Delivery"
+      description="Áreas de cobertura e taxas"
+      actions={
+        <Button
+          type="button"
+          size="sm"
+          disabled={!tenantId || !hydrated}
+          onClick={handleSave}
+        >
+          Salvar áreas
+          {dirty ? (
+            <Badge variant="secondary" className="ml-1">
+              *
+            </Badge>
+          ) : null}
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {!tenantId ? (
+          <Alert>
+            <AlertTitle>Tenant não carregado</AlertTitle>
+            <AlertDescription>
+              Aguarde o sync da loja para configurar as áreas de entrega.
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-        <Card size="sm" className="shadow-none">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Navigation className="size-4" />
-                  Entregas ativas
-                </CardTitle>
-                <CardDescription>
-                  Linha do tempo do turno — atualização mock
-                </CardDescription>
-              </div>
-              <Badge variant="outline">4 em andamento</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="relative space-y-0 pl-6">
-              <div className="absolute top-2 bottom-2 left-[9px] w-px bg-border" />
-              {activeDeliveries.map((delivery, index) => (
-                <div key={delivery.id} className="relative pb-6 last:pb-0">
-                  <div
-                    className={`absolute -left-6 top-3 size-[18px] rounded-full border-2 bg-background ${
-                      delivery.status === "Entregue"
-                        ? "border-success bg-success/20"
-                        : delivery.status === "Atrasado"
-                          ? "border-destructive bg-destructive/20"
-                          : "border-primary bg-primary/20"
-                    }`}
-                  />
-                  <Item variant="outline" size="sm" className="ml-2">
-                    <ItemMedia variant="icon">
-                      <Truck />
-                    </ItemMedia>
-                    <ItemContent>
-                      <ItemTitle className="flex w-full flex-wrap items-center justify-between gap-2">
-                        <span>
-                          {delivery.id} · {delivery.customer}
-                        </span>
-                        <DeliveryStatusBadge status={delivery.status} />
-                      </ItemTitle>
-                      <ItemDescription className="line-clamp-none">
-                        {delivery.address}
-                      </ItemDescription>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline">{delivery.zone}</Badge>
-                        <span>Entregador: {delivery.driver}</span>
-                        <span>·</span>
-                        <span>{delivery.eta}</span>
-                      </div>
-                    </ItemContent>
-                  </Item>
-                  {index < activeDeliveries.length - 1 ? (
-                    <Separator className="mt-4 ml-2" />
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)]">
+          <div className="overflow-hidden rounded-2xl border bg-muted/10">
+            <DeliveryAreasMap
+              className="h-[min(70vh,560px)]"
+              areas={areas}
+              selectedId={selectedId}
+              drawing={drawing}
+              onSelect={setSelectedId}
+              onDrawingChange={setDrawing}
+              onPolygonComplete={handlePolygonComplete}
+              onPathChange={handlePathChange}
+            />
+          </div>
 
-        <Card size="sm" className="shadow-none">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="size-4" />
-              Zonas de entrega
-            </CardTitle>
-            <CardDescription>Taxas e bairros cobertos</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {zones.map((zone) => (
-              <Card key={zone.name} size="sm" className="shadow-none">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-base">{zone.name}</CardTitle>
-                    <span className="text-lg font-semibold tabular-nums">
-                      {zone.fee}
+          <div className="flex min-h-[320px] flex-col gap-4 rounded-2xl border p-4">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-medium">
+                <MapPin className="size-4" />
+                Áreas ({areas.length})
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Desenhe polígonos no mapa. Os dados ficam neste navegador até a
+                API existir.
+              </p>
+            </div>
+
+            <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
+              {areas.length === 0 ? (
+                <p className="rounded-xl border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">
+                  Nenhuma área ainda. Use “Desenhar área” no mapa.
+                </p>
+              ) : (
+                areas.map((area) => (
+                  <button
+                    key={area.id}
+                    type="button"
+                    onClick={() => setSelectedId(area.id)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors",
+                      selectedId === area.id
+                        ? "border-primary/40 bg-primary/5"
+                        : "hover:bg-muted/50"
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: area.color }}
+                    />
+                    <span className="min-w-0 flex-1 truncate font-medium">
+                      {area.name}
                     </span>
-                  </div>
-                  <CardDescription>{zone.eta}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex flex-wrap gap-1">
-                    {zone.neighborhoods.map((n) => (
-                      <Badge key={n} variant="secondary">
-                        {n}
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatFeeBrl(area.feeCents)}
+                    </span>
+                    {!area.active ? (
+                      <Badge variant="outline" className="shrink-0 text-[10px]">
+                        Inativa
                       </Badge>
-                    ))}
-                  </div>
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-xs text-muted-foreground">
-                      {zone.active > 0
-                        ? `${zone.active} entrega(s) ativa(s)`
-                        : "Sem entregas agora"}
-                    </span>
-                    <Button size="xs" variant="ghost">
-                      Editar taxa
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+                    ) : null}
+                  </button>
+                ))
+              )}
+            </div>
 
-      <Card size="sm" className="shadow-none">
-        <CardHeader>
-          <CardTitle>Resumo operacional</CardTitle>
-          <CardDescription>Prioridades do turno de delivery</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ItemGroup className="gap-2 md:grid md:grid-cols-3 md:gap-3">
-            {[
-              "Priorize #1034 (atrasado) antes de novas saídas.",
-              "Zona Sul com taxa maior — confirmar endereço no app.",
-              "Marcos concentra 2 entregas; evitar sobrecarga na rota.",
-            ].map((note) => (
-              <Item key={note} variant="muted" size="sm">
-                <ItemContent>
-                  <ItemDescription className="line-clamp-none">
-                    {note}
-                  </ItemDescription>
-                </ItemContent>
-              </Item>
-            ))}
-          </ItemGroup>
-        </CardContent>
-      </Card>
-    </div>
+            <Separator />
+
+            {selected ? (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="area-name">Nome</Label>
+                  <Input
+                    id="area-name"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value)
+                      setDirty(true)
+                    }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="area-fee">Taxa de entrega (R$)</Label>
+                  <Input
+                    id="area-fee"
+                    inputMode="decimal"
+                    value={feeInput}
+                    onChange={(e) => {
+                      setFeeInput(e.target.value)
+                      setDirty(true)
+                    }}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="area-eta-min">ETA mín. (min)</Label>
+                    <Input
+                      id="area-eta-min"
+                      type="number"
+                      min={0}
+                      value={etaMin}
+                      onChange={(e) => {
+                        setEtaMin(e.target.value)
+                        setDirty(true)
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="area-eta-max">ETA máx. (min)</Label>
+                    <Input
+                      id="area-eta-max"
+                      type="number"
+                      min={0}
+                      value={etaMax}
+                      onChange={(e) => {
+                        setEtaMax(e.target.value)
+                        setDirty(true)
+                      }}
+                    />
+                  </div>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={active}
+                    onCheckedChange={(checked) => {
+                      setActive(checked === true)
+                      setDirty(true)
+                    }}
+                  />
+                  Área ativa para entregas
+                </label>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleApplySelected}
+                  >
+                    Aplicar
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRemove}
+                  >
+                    <Trash2 data-icon="inline-start" />
+                    Remover
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Arraste os vértices no mapa para ajustar o contorno da área
+                  selecionada.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Selecione uma área na lista ou no mapa para editar.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
     </ModuleShell>
   )
 }

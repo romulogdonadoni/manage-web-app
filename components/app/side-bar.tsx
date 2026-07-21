@@ -99,12 +99,6 @@ const shellNav = [
     access: "auth",
   },
   {
-    href: "/tenants",
-    label: "Tenants",
-    icon: Building2,
-    access: "tenants",
-  },
-  {
     href: "/billing",
     label: "Assinatura",
     icon: CreditCard,
