@@ -1,11 +1,12 @@
-import { ModuleShell } from "@/components/app/module-shell"
-import {
-  Bike,
-  CheckCircle2,
-  Clock3,
-  ShoppingBag,
-} from "lucide-react"
+"use client"
 
+import { Bike, CheckCircle2, Clock3, ShoppingBag } from "lucide-react"
+import { useSession } from "next-auth/react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
+
+import { ModuleShell } from "@/components/app/module-shell"
+import { OrderLinesAccordion } from "@/components/orders/order-lines-accordion"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -14,13 +15,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
 import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-} from "@/components/ui/item"
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import {
   Table,
   TableBody,
@@ -29,279 +31,385 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ApiError } from "@/lib/api/client"
+import {
+  FULFILLMENT_LABEL,
+  getTenantOrder,
+  listTenantOrders,
+  ORDER_STATUS_LABEL,
+  PAYMENT_METHOD_LABEL,
+  type ManageOrderDetail,
+  type ManageOrderListItem,
+} from "@/lib/api/orders"
+import { formatCurrencyBRL } from "@/lib/format/currency"
+import { useCurrentStore } from "@/lib/store/current-store-context"
 
-const stats = [
-  {
-    label: "Abertos",
-    value: "8",
-    hint: "Na fila da cozinha",
-    icon: ShoppingBag,
-  },
-  {
-    label: "Em entrega",
-    value: "3",
-    hint: "2 a caminho · 1 atraso",
-    icon: Bike,
-  },
-  {
-    label: "Concluídos hoje",
-    value: "47",
-    hint: "+12 vs ontem",
-    icon: CheckCircle2,
-  },
-  {
-    label: "Ticket médio",
-    value: "R$ 48",
-    hint: "Últimas 24h",
-    icon: Clock3,
-  },
-] as const
+type FilterTab = "all" | "open" | "done"
 
-const orders = [
-  {
-    id: "#1042",
-    customer: "Ana Souza",
-    channel: "Delivery",
-    items: "Classic Smash · Batata",
-    total: "R$ 51,80",
-    status: "Preparando",
-    time: "12 min",
-  },
-  {
-    id: "#1041",
-    customer: "Bruno Lima",
-    channel: "Balcão",
-    items: "Double Cheese · Milkshake",
-    total: "R$ 59,80",
-    status: "Pronto",
-    time: "3 min",
-  },
-  {
-    id: "#1040",
-    customer: "Carla Dias",
-    channel: "App",
-    items: "BBQ Ranch · Onion rings · Refri",
-    total: "R$ 66,70",
-    status: "Saiu p/ entrega",
-    time: "18 min",
-  },
-  {
-    id: "#1039",
-    customer: "Diego Alves",
-    channel: "Delivery",
-    items: "Classic Smash · Classic Smash",
-    total: "R$ 65,80",
-    status: "Entregue",
-    time: "42 min",
-  },
-  {
-    id: "#1038",
-    customer: "Elena Prado",
-    channel: "Balcão",
-    items: "Batata rústica · Refri",
-    total: "R$ 26,80",
-    status: "Cancelado",
-    time: "55 min",
-  },
-  {
-    id: "#1037",
-    customer: "Fábio Nunes",
-    channel: "App",
-    items: "Double Cheese · Onion rings",
-    total: "R$ 61,80",
-    status: "Preparando",
-    time: "8 min",
-  },
-  {
-    id: "#1036",
-    customer: "Giulia Rocha",
-    channel: "Delivery",
-    items: "Classic Smash · Milkshake",
-    total: "R$ 52,80",
-    status: "Entregue",
-    time: "61 min",
-  },
-  {
-    id: "#1035",
-    customer: "Hugo Martins",
-    channel: "Balcão",
-    items: "BBQ Ranch · Batata · Refri",
-    total: "R$ 63,70",
-    status: "Entregue",
-    time: "70 min",
-  },
-] as const
+const OPEN_STATUSES = new Set([
+  "PendingPayment",
+  "AwaitingAcceptance",
+  "Received",
+  "Preparing",
+  "Ready",
+  "OutForDelivery",
+])
 
-const activity = [
-  { title: "Pedido #1042 enviado à cozinha", time: "Há 2 min", type: "cozinha" },
-  { title: "Pedido #1041 marcado como pronto", time: "Há 3 min", type: "status" },
-  { title: "Entrega #1040 saiu", time: "Há 8 min", type: "entrega" },
-  { title: "Pedido #1038 cancelado no balcão", time: "Há 15 min", type: "alerta" },
-  { title: "Pedido #1039 entregue", time: "Há 22 min", type: "status" },
-  { title: "Novo pedido #1043 via App", time: "Há 25 min", type: "pedido" },
-] as const
+const DONE_STATUSES = new Set(["Delivered", "Cancelled"])
 
-const channels = [
-  { name: "App", share: "42%", orders: "20 hoje" },
-  { name: "Delivery", share: "35%", orders: "16 hoje" },
-  { name: "Balcão", share: "23%", orders: "11 hoje" },
-] as const
-
-function OrderStatusBadge({ status }: { status: string }) {
-  const variant =
-    status === "Pronto" || status === "Entregue"
-      ? "success"
-      : status === "Preparando"
-        ? "warning"
-        : status === "Saiu p/ entrega"
-          ? "info"
-          : "destructive"
-
-  return <Badge variant={variant}>{status}</Badge>
+function statusBadgeVariant(status: string) {
+  switch (status) {
+    case "AwaitingAcceptance":
+      return "warning" as const
+    case "Received":
+    case "Preparing":
+      return "info" as const
+    case "Ready":
+    case "Delivered":
+      return "success" as const
+    case "OutForDelivery":
+      return "secondary" as const
+    case "Cancelled":
+    case "PendingPayment":
+      return "destructive" as const
+    default:
+      return "outline" as const
+  }
 }
 
-function ActivityBadge({ type }: { type: string }) {
-  const variant =
-    type === "pedido"
-      ? "info"
-      : type === "status"
-        ? "success"
-        : type === "entrega"
-          ? "warning"
-          : type === "alerta"
-            ? "destructive"
-            : "secondary"
+function matchesFilter(order: ManageOrderListItem, tab: FilterTab) {
+  if (tab === "all") return true
+  if (tab === "open") return OPEN_STATUSES.has(order.status)
+  return DONE_STATUSES.has(order.status)
+}
 
-  return <Badge variant={variant}>{type}</Badge>
+function startOfTodayUtc() {
+  const now = new Date()
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  ).toISOString()
 }
 
 export default function OrdersPage() {
+  const { data: session } = useSession()
+  const { data: store } = useCurrentStore()
+  const access = session?.accessToken
+  const tenantId = store?.identifier
+
+  const [orders, setOrders] = useState<ManageOrderListItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<FilterTab>("all")
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [detail, setDetail] = useState<ManageOrderDetail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  const refresh = useCallback(async () => {
+    if (!access || !tenantId) {
+      setOrders([])
+      setLoading(false)
+      return
+    }
+    try {
+      const list = await listTenantOrders({ take: 100 }, access, tenantId)
+      setOrders(list)
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Falha ao carregar pedidos."
+      )
+    } finally {
+      setLoading(false)
+    }
+  }, [access, tenantId])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  useEffect(() => {
+    if (!access || !tenantId) return
+    const timer = window.setInterval(() => void refresh(), 15000)
+    return () => window.clearInterval(timer)
+  }, [access, tenantId, refresh])
+
+  useEffect(() => {
+    if (!selectedId || !access || !tenantId) {
+      setDetail(null)
+      return
+    }
+    let cancelled = false
+    setDetailLoading(true)
+    ;(async () => {
+      try {
+        const data = await getTenantOrder(selectedId, access, tenantId)
+        if (!cancelled) setDetail(data)
+      } catch (err) {
+        if (!cancelled) {
+          toast.error(
+            err instanceof ApiError ? err.message : "Falha ao carregar pedido."
+          )
+          setSelectedId(null)
+        }
+      } finally {
+        if (!cancelled) setDetailLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId, access, tenantId])
+
+  const filtered = useMemo(
+    () => orders.filter((o) => matchesFilter(o, filter)),
+    [orders, filter]
+  )
+
+  const stats = useMemo(() => {
+    const awaiting = orders.filter((o) => o.status === "AwaitingAcceptance")
+      .length
+    const open = orders.filter((o) => OPEN_STATUSES.has(o.status)).length
+    const delivery = orders.filter((o) => o.status === "OutForDelivery").length
+    const todayStart = startOfTodayUtc()
+    const doneToday = orders.filter(
+      (o) => o.status === "Delivered" && o.updatedAtUtc >= todayStart
+    ).length
+    return { awaiting, open, delivery, doneToday }
+  }, [orders])
+
   return (
-    <ModuleShell title={"Pedidos"} description={"Fila e status de pedidos"}>
+    <ModuleShell
+      title="Pedidos"
+      description="Histórico e consulta dos pedidos da loja"
+    >
       <div className="flex flex-col gap-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map(({ label, value, hint, icon: Icon }) => (
-          <Card key={label} size="sm" className="shadow-none">
-            <CardHeader className="flex flex-row items-start justify-between gap-3">
-              <div>
-                <CardDescription>{label}</CardDescription>
-                <CardTitle className="mt-1 text-2xl font-semibold tracking-tight">
-                  {value}
-                </CardTitle>
-              </div>
-              <div className="flex size-9 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-                <Icon className="size-4" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">{hint}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterTab)}>
+          <TabsList>
+            <TabsTrigger value="all">Todos</TabsTrigger>
+            <TabsTrigger value="open">Em aberto</TabsTrigger>
+            <TabsTrigger value="done">Finalizados</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            {
+              label: "Aguardando aceite",
+              value: String(stats.awaiting),
+              hint: "Vão para a Cozinha",
+              icon: ShoppingBag,
+            },
+            {
+              label: "Em aberto",
+              value: String(stats.open),
+              hint: "Ainda não concluídos",
+              icon: Clock3,
+            },
+            {
+              label: "Em entrega",
+              value: String(stats.delivery),
+              hint: "A caminho",
+              icon: Bike,
+            },
+            {
+              label: "Concluídos hoje",
+              value: String(stats.doneToday),
+              hint: "Entregues (UTC)",
+              icon: CheckCircle2,
+            },
+          ].map(({ label, value, hint, icon: Icon }) => (
+            <Card key={label} size="sm" className="shadow-none">
+              <CardHeader className="flex flex-row items-start justify-between gap-3">
+                <div>
+                  <CardDescription>{label}</CardDescription>
+                  <CardTitle className="mt-1 text-2xl font-semibold tracking-tight">
+                    {value}
+                  </CardTitle>
+                </div>
+                <div className="flex size-9 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                  <Icon className="size-4" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">{hint}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
         <Card size="sm" className="shadow-none">
           <CardHeader>
-            <CardTitle>Fila de pedidos</CardTitle>
-            <CardDescription>Últimos pedidos do turno</CardDescription>
+            <CardTitle>Lista de pedidos</CardTitle>
+            <CardDescription>
+              Consulta · aceite e status ficam em{" "}
+              <span className="font-medium text-foreground">Cozinha</span>
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Pedido</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Canal</TableHead>
-                  <TableHead>Itens</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Tempo</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
-                    <TableCell>{order.customer}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{order.channel}</Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[220px] truncate text-muted-foreground">
-                      {order.items}
-                    </TableCell>
-                    <TableCell>
-                      <OrderStatusBadge status={order.status} />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {order.time}
-                    </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
-                      {order.total}
-                    </TableCell>
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Carregando…</p>
+            ) : filtered.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhum pedido neste filtro.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Pedido</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Modalidade</TableHead>
+                    <TableHead>Itens</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Quando</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <Card size="sm" className="shadow-none">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShoppingBag className="size-4" />
-              Atividade
-            </CardTitle>
-            <CardDescription>Eventos recentes do turno</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ItemGroup className="gap-2">
-              {activity.map((item) => (
-                <Item
-                  key={`${item.title}-${item.time}`}
-                  variant="muted"
-                  size="sm"
-                >
-                  <ItemContent>
-                    <ItemTitle className="flex w-full items-center justify-between gap-2">
-                      <span className="truncate">{item.title}</span>
-                      <ActivityBadge type={item.type} />
-                    </ItemTitle>
-                    <ItemDescription>{item.time}</ItemDescription>
-                  </ItemContent>
-                </Item>
-              ))}
-            </ItemGroup>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((order) => (
+                    <TableRow
+                      key={order.id}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedId(order.id)}
+                    >
+                      <TableCell className="font-medium">
+                        {order.publicNumber}
+                      </TableCell>
+                      <TableCell>
+                        <div className="min-w-0">
+                          <p>{order.customerName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {order.customerPhone}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {FULFILLMENT_LABEL[order.fulfillment] ??
+                            order.fulfillment}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[220px] truncate text-muted-foreground">
+                        {order.itemsSummary || "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusBadgeVariant(order.status)}>
+                          {ORDER_STATUS_LABEL[order.status] ?? order.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(order.createdAtUtc).toLocaleString("pt-BR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {formatCurrencyBRL(order.total)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      <Card size="sm" className="shadow-none">
-        <CardHeader>
-          <CardTitle>Canais</CardTitle>
-          <CardDescription>Distribuição de pedidos no turno</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-3">
-            {channels.map((channel) => (
-              <Card key={channel.name} size="sm" className="shadow-none">
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-2">
-                    <CardTitle>{channel.name}</CardTitle>
-                    <Badge variant="outline">{channel.share}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">
-                    {channel.orders}
+      <Sheet
+        open={selectedId != null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedId(null)
+        }}
+      >
+        <SheetContent side="right" className="w-full sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>{detail?.publicNumber ?? "Pedido"}</SheetTitle>
+            <SheetDescription>
+              {detail
+                ? ORDER_STATUS_LABEL[detail.status] ?? detail.status
+                : "Carregando…"}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-6">
+            {detailLoading || !detail ? (
+              <p className="text-sm text-muted-foreground">Carregando…</p>
+            ) : (
+              <>
+                <div className="space-y-1 text-sm">
+                  <p>
+                    <span className="text-muted-foreground">Cliente: </span>
+                    {detail.customerName} · {detail.customerPhone}
                   </p>
-                </CardContent>
-              </Card>
-            ))}
+                  {detail.customerEmail ? (
+                    <p>
+                      <span className="text-muted-foreground">E-mail: </span>
+                      {detail.customerEmail}
+                    </p>
+                  ) : null}
+                  <p>
+                    <span className="text-muted-foreground">Modalidade: </span>
+                    {FULFILLMENT_LABEL[detail.fulfillment] ?? detail.fulfillment}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Pagamento: </span>
+                    {PAYMENT_METHOD_LABEL[detail.paymentMethod] ??
+                      detail.paymentMethod}
+                  </p>
+                  {detail.fulfillment === "Delivery" ? (
+                    <p>
+                      <span className="text-muted-foreground">Endereço: </span>
+                      {[
+                        detail.addressStreet,
+                        detail.addressNumber,
+                        detail.addressComplement,
+                        detail.addressNeighborhood,
+                        detail.addressCity,
+                      ]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                  ) : null}
+                  {detail.note ? (
+                    <p>
+                      <span className="text-muted-foreground">Obs.: </span>
+                      {detail.note}
+                    </p>
+                  ) : null}
+                </div>
+
+                <Separator />
+
+                <OrderLinesAccordion lines={detail.lines} />
+
+                <Separator />
+
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="tabular-nums">
+                      {formatCurrencyBRL(detail.subtotal)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Entrega</span>
+                    <span className="tabular-nums">
+                      {formatCurrencyBRL(detail.deliveryFee)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-semibold">
+                    <span>Total</span>
+                    <span className="tabular-nums">
+                      {formatCurrencyBRL(detail.total)}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </SheetContent>
+      </Sheet>
     </ModuleShell>
   )
 }

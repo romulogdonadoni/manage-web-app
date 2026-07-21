@@ -112,6 +112,17 @@ const shellNav = [
   },
 ] as const
 
+/** Menus visíveis no sidebar (demais ficam ocultos até liberar). */
+const SIDEBAR_VISIBLE_ACCESS = new Set([
+  "dashboard",
+  "auth",
+  "settings",
+  "menu",
+  "products",
+  "orders",
+  "kds",
+])
+
 export default function SideBar({
   initialCollapsed = false,
 }: {
@@ -188,6 +199,7 @@ export default function SideBar({
     return routes
       .filter(
         (route) =>
+          SIDEBAR_VISIBLE_ACCESS.has(route.moduleId) &&
           (enabledModules == null ||
             enabledModules.includes(route.moduleId)) &&
           canAccessNav(
@@ -202,11 +214,17 @@ export default function SideBar({
         icon: route.icon,
         access: route.moduleId,
       }))
+      .sort((a, b) => {
+        const order = ["menu", "products", "orders", "kds"]
+        return order.indexOf(a.access) - order.indexOf(b.access)
+      })
   }, [profile, tenantRole, allowedMenus])
 
   const visibleShell = useMemo(() => {
-    return shellNav.filter((item) =>
-      canAccessNav(tenantRole, item.access, allowedMenus)
+    return shellNav.filter(
+      (item) =>
+        SIDEBAR_VISIBLE_ACCESS.has(item.access) &&
+        canAccessNav(tenantRole, item.access, allowedMenus)
     )
   }, [tenantRole, allowedMenus])
 

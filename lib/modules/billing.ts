@@ -40,12 +40,10 @@ export type BillingState = {
   changes: SubscriptionChange[]
 }
 
+import { formatCurrencyBRL } from "@/lib/format/currency"
+
 export function formatBRL(value: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    maximumFractionDigits: 0,
-  }).format(value)
+  return formatCurrencyBRL(value)
 }
 
 export function subscriptionLineItems(modules: ModuleId[]): InvoiceLineItem[] {

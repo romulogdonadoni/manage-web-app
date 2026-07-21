@@ -10,8 +10,8 @@ import {
   Trash2,
   UtensilsCrossed,
 } from "lucide-react"
-import Link from "next/link"
 import { useSession } from "next-auth/react"
+import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
@@ -43,8 +43,8 @@ import {
   createMenuGroup,
   deleteMenuGroup,
   getMenu,
-  listMenus,
   listMenuProducts,
+  listMenus,
   listProductGroups,
   setMenuGroupItems,
   updateMenuGroup,
@@ -56,10 +56,7 @@ import {
   type MenuProductDto,
   type ProductGroupDto,
 } from "@/lib/api/menu"
-import {
-  resolveTenantFromPath,
-  withTenantPrefix,
-} from "@/lib/auth/tenant-host"
+import { resolveTenantFromPath, withTenantPrefix } from "@/lib/auth/tenant-host"
 import { formatBRL } from "@/lib/modules/billing"
 
 function toItemInputs(items: MenuGroupItemDto[]): MenuGroupItemInput[] {
@@ -108,8 +105,7 @@ export default function MenuPage() {
   }, [session?.accessToken, tenantId])
 
   const productsHref = useMemo(
-    () =>
-      tenantId ? withTenantPrefix(tenantId, "/products") : "/products",
+    () => (tenantId ? withTenantPrefix(tenantId, "/products") : "/products"),
     [tenantId]
   )
 
@@ -129,8 +125,7 @@ export default function MenuPage() {
     useState<MenuGroupDto | null>(null)
 
   const [addItemGroup, setAddItemGroup] = useState<MenuGroupDto | null>(null)
-  const [addItemType, setAddItemType] =
-    useState<MenuGroupItemType>("Product")
+  const [addItemType, setAddItemType] = useState<MenuGroupItemType>("Product")
   const [addItemRefId, setAddItemRefId] = useState("")
   const [pickerFilter, setPickerFilter] = useState("")
 
@@ -334,12 +329,10 @@ export default function MenuPage() {
       toast.error("Selecione um item do catálogo.")
       return
     }
-    const group =
-      groups.find((g) => g.id === addItemGroup.id) ?? addItemGroup
+    const group = groups.find((g) => g.id === addItemGroup.id) ?? addItemGroup
     const current = sortItems(group.items ?? [])
     const dup = current.some(
-      (i) =>
-        i.type === addItemType && i.referenceId === addItemRefId
+      (i) => i.type === addItemType && i.referenceId === addItemRefId
     )
     if (dup) {
       toast.error("Este item já está nesta seção.")
@@ -356,10 +349,7 @@ export default function MenuPage() {
     }
   }
 
-  const toggleVisible = async (
-    group: MenuGroupDto,
-    item: MenuGroupItemDto
-  ) => {
+  const toggleVisible = async (group: MenuGroupDto, item: MenuGroupItemDto) => {
     const current = sortItems(group.items ?? [])
     const next = toItemInputs(current).map((row) =>
       row.referenceId === item.referenceId && row.type === item.type
@@ -373,8 +363,7 @@ export default function MenuPage() {
     const current = sortItems(group.items ?? [])
     const next = toItemInputs(
       current.filter(
-        (i) =>
-          !(i.referenceId === item.referenceId && i.type === item.type)
+        (i) => !(i.referenceId === item.referenceId && i.type === item.type)
       )
     )
     const ok = await replaceGroupItems(group, next)
@@ -394,10 +383,7 @@ export default function MenuPage() {
     await replaceGroupItems(group, toItemInputs(swapped))
   }
 
-  const totalItems = groups.reduce(
-    (acc, g) => acc + (g.items?.length ?? 0),
-    0
-  )
+  const totalItems = groups.reduce((acc, g) => acc + (g.items?.length ?? 0), 0)
   const visibleItems = groups.reduce(
     (acc, g) => acc + (g.items?.filter((i) => i.isVisible).length ?? 0),
     0
@@ -427,7 +413,7 @@ export default function MenuPage() {
               Cardápio
             </CardDescription>
             <CardTitle className="truncate text-lg">
-              {loading ? "—" : menu?.name ?? "—"}
+              {loading ? "—" : (menu?.name ?? "—")}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
@@ -571,11 +557,7 @@ export default function MenuPage() {
                     {items.map((item, index) => {
                       const resolved = resolveItem(item)
                       return (
-                        <Card
-                          key={item.id}
-                          size="sm"
-                          className="shadow-none"
-                        >
+                        <Card key={item.id} size="sm" className="shadow-none p-0">
                           <CardContent className="flex flex-wrap items-center gap-4 py-4">
                             {resolved.imageUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
@@ -638,13 +620,9 @@ export default function MenuPage() {
                               <Button
                                 type="button"
                                 size="sm"
-                                variant={
-                                  item.isVisible ? "outline" : "default"
-                                }
+                                variant={item.isVisible ? "outline" : "default"}
                                 disabled={groupBusy}
-                                onClick={() =>
-                                  void toggleVisible(group, item)
-                                }
+                                onClick={() => void toggleVisible(group, item)}
                               >
                                 {item.isVisible ? (
                                   <>

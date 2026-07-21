@@ -8,6 +8,7 @@ import { toast } from "sonner"
 
 import { ImageUploadButton } from "@/components/app/image-upload-button"
 import { ModuleShell } from "@/components/app/module-shell"
+import { ProductGroupsPanel } from "@/components/app/product-groups-panel"
 import {
   Accordion,
   AccordionContent,
@@ -65,6 +66,11 @@ import {
   type MenuProductDto,
 } from "@/lib/api/menu"
 import { resolveTenantFromPath } from "@/lib/auth/tenant-host"
+import {
+  formatCurrencyBRL,
+  moneyToInput,
+  parseMoneyInput,
+} from "@/lib/format/currency"
 
 type ProductForm = {
   categoryId: string
@@ -107,27 +113,6 @@ const emptyForm = (categoryId = ""): ProductForm => ({
   isPopular: false,
   isActive: true,
 })
-
-/** Converte input sem forçar casas decimais / arredondamento. */
-function parseMoney(value: string): number {
-  const n = Number(value.replace(",", ".").trim())
-  return Number.isFinite(n) ? n : 0
-}
-
-/** Valor do API → input, sem toFixed (evita arredondar). */
-function moneyToInput(value: number): string {
-  if (!Number.isFinite(value)) return ""
-  return String(value)
-}
-
-function formatProductBRL(value: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  }).format(value)
-}
 
 function emptyGroupEditor(): GroupEditor {
   return {
@@ -181,6 +166,9 @@ export default function ProductsPage() {
   const [busy, setBusy] = useState(false)
   const [newCategory, setNewCategory] = useState("")
   const [activeTab, setActiveTab] = useState("all")
+  const [pageSection, setPageSection] = useState<"products" | "groups">(
+    "products"
+  )
   const [productOpen, setProductOpen] = useState(false)
   const [editing, setEditing] = useState<MenuProductDto | null>(null)
   const [form, setForm] = useState<ProductForm>(emptyForm())
@@ -320,7 +308,7 @@ export default function ProductsPage() {
         for (const opt of editor.options) {
           const name = opt.name.trim()
           if (!name) continue
-          const price = parseMoney(opt.price)
+          const price = parseMoneyInput(opt.price)
           if (opt.id) {
             await updateOptionItem(groupId, opt.id, { name, price }, auth)
           } else {
@@ -338,7 +326,7 @@ export default function ProductsPage() {
           if (!name) continue
           await addOptionItem(
             groupId,
-            { name, price: parseMoney(opt.price) },
+            { name, price: parseMoneyInput(opt.price) },
             auth
           )
         }
@@ -353,9 +341,9 @@ export default function ProductsPage() {
     if (!auth || !form.name.trim() || !form.categoryId) return
     setBusy(true)
     try {
-      const price = parseMoney(form.price)
+      const price = parseMoneyInput(form.price)
       const compareAt = form.compareAtPrice.trim()
-        ? parseMoney(form.compareAtPrice)
+        ? parseMoneyInput(form.compareAtPrice)
         : null
       const optionGroupIds = await syncGroupEditors()
 
@@ -446,8 +434,31 @@ export default function ProductsPage() {
   return (
     <ModuleShell
       title="Produtos"
-      description="Cadastre itens, categorias e opções. A visibilidade no app fica no Cardápio."
+      description={
+        pageSection === "products"
+          ? "Cadastre itens, categorias e opções. A visibilidade no app fica no Cardápio."
+          : "Monte combos e kits com itens fixos e escolhas. Depois adicione-os no Cardápio."
+      }
     >
+      <Tabs
+        value={pageSection}
+        onValueChange={(v) => setPageSection(v as "products" | "groups")}
+        className="mb-6"
+      >
+        <TabsList>
+          <TabsTrigger value="products">Produtos</TabsTrigger>
+          <TabsTrigger value="groups">Grupos compostos</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {pageSection === "groups" ? (
+        <ProductGroupsPanel
+          auth={auth}
+          tenantId={tenantId}
+          products={products}
+        />
+      ) : (
+        <>
       <div className="mb-6 grid gap-3 sm:grid-cols-2">
         <Card size="sm" className="shadow-none">
           <CardHeader className="pb-2">
@@ -575,7 +586,7 @@ export default function ProductsPage() {
           ) : (
             <div className="space-y-3">
               {filteredProducts.map((product) => (
-                <Card key={product.id} size="sm" className="shadow-none">
+                <Card key={product.id} size="sm" className="shadow-none p-0">
                   <CardContent className="flex flex-wrap items-start gap-4 py-4">
                     {product.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -619,7 +630,7 @@ export default function ProductsPage() {
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <p className="font-medium tabular-nums">
-                        {formatProductBRL(product.price)}
+                        {formatCurrencyBRL(product.price)}
                       </p>
                       <div className="flex gap-1">
                         <Button
@@ -1185,6 +1196,8 @@ export default function ProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </ModuleShell>
   )
 }

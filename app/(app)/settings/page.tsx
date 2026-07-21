@@ -131,6 +131,7 @@ export default function SettingsPage() {
       description="Logo, módulos da assinatura e preferências da empresa"
     >
     <div className="flex flex-col gap-6">
+      <StoreProfileCard />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
@@ -176,8 +177,6 @@ export default function SettingsPage() {
           </Card>
         ))}
       </div>
-
-      <StoreProfileCard />
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <Card size="sm" className="shadow-none">
