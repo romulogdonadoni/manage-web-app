@@ -5,6 +5,7 @@ import type {
   ProvisionTenantResult,
   TenantDto,
   UpdateAvatarResult,
+  UpdateBannerResult,
   UpdateLogoResult,
 } from "@/lib/api/types"
 
@@ -31,6 +32,21 @@ export function provisionTenant(
     body: JSON.stringify(body),
     accessToken,
   })
+}
+
+export function checkTenantIdentifierAvailability(
+  identifier: string,
+  accessToken: string
+) {
+  const qs = new URLSearchParams({ identifier })
+  return apiFetch<{ identifier: string; available: boolean }>(
+    `/tenants/availability?${qs.toString()}`,
+    {
+      method: "GET",
+      accessToken,
+      cache: "no-store",
+    }
+  )
 }
 
 export function deleteTenant(identifier: string, accessToken: string) {
@@ -71,6 +87,19 @@ export function updateTenantLogo(
   return apiFetch<UpdateLogoResult>("/tenant/me/logo", {
     method: "PATCH",
     body: JSON.stringify({ logoUrl }),
+    accessToken,
+    tenantId,
+  })
+}
+
+export function updateTenantBanner(
+  bannerUrl: string | null,
+  accessToken: string,
+  tenantId: string
+) {
+  return apiFetch<UpdateBannerResult>("/tenant/me/banner", {
+    method: "PATCH",
+    body: JSON.stringify({ bannerUrl }),
     accessToken,
     tenantId,
   })

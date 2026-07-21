@@ -1,6 +1,7 @@
 "use client"
 
 import { Check, PawPrint, UtensilsCrossed } from "lucide-react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Suspense, useEffect, useMemo, useState } from "react"
@@ -15,10 +16,11 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import Link from "next/link"
-
 import { ApiError } from "@/lib/api/client"
-import { provisionTenant } from "@/lib/api/tenants"
+import {
+  checkTenantIdentifierAvailability,
+  provisionTenant,
+} from "@/lib/api/tenants"
 import { getAccountUser } from "@/lib/api/users"
 import {
   INDUSTRIES,
@@ -26,18 +28,13 @@ import {
   defaultModulesFor,
   type IndustryId,
 } from "@/lib/modules/catalog"
-import {
-  bootstrapBilling,
-  saveTenantProfile,
-} from "@/lib/modules/storage"
+import { bootstrapBilling, saveTenantProfile } from "@/lib/modules/storage"
 import { cn } from "@/lib/utils"
 
 const INDUSTRY_ICONS: Record<IndustryId, typeof UtensilsCrossed> = {
   "food.restaurant": UtensilsCrossed,
   "pet.retail": PawPrint,
 }
-
-const MAX_IDENTIFIER_ATTEMPTS = 20
 
 function CreateCompanyForm() {
   const router = useRouter()
@@ -50,6 +47,9 @@ function CreateCompanyForm() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [planLoading, setPlanLoading] = useState(true)
   const [canCreateTenants, setCanCreateTenants] = useState(false)
+  const [slugChecking, setSlugChecking] = useState(false)
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null)
+  const [slugError, setSlugError] = useState<string | null>(null)
 
   const authError = searchParams.get("authError")
   const previewId = useMemo(
@@ -81,15 +81,66 @@ function CreateCompanyForm() {
     }
   }, [session?.accessToken, sessionStatus])
 
+  useEffect(() => {
+    if (!previewId || !session?.accessToken || !canCreateTenants) {
+      setSlugAvailable(null)
+      setSlugError(null)
+      setSlugChecking(false)
+      return
+    }
+
+    let cancelled = false
+    setSlugChecking(true)
+    setSlugAvailable(null)
+    setSlugError(null)
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const result = await checkTenantIdentifierAvailability(
+            previewId,
+            session.accessToken!
+          )
+          if (cancelled) return
+          setSlugAvailable(result.available)
+          setSlugError(
+            result.available
+              ? null
+              : `O identificador /${result.identifier} já está em uso. Escolha outro nome.`
+          )
+        } catch (error) {
+          if (cancelled) return
+          setSlugAvailable(null)
+          setSlugError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível verificar o identificador."
+          )
+        } finally {
+          if (!cancelled) setSlugChecking(false)
+        }
+      })()
+    }, 400)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [previewId, session?.accessToken, canCreateTenants])
+
   const canSubmit =
     canCreateTenants &&
     name.trim().length >= 2 &&
     Boolean(industryId) &&
+    Boolean(previewId) &&
+    slugAvailable === true &&
+    !slugChecking &&
     !submitting
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!industryId || submitting || !canCreateTenants) return
+    if (!industryId || submitting || !canCreateTenants || !previewId) return
+    if (slugAvailable !== true) return
 
     if (sessionStatus !== "authenticated" || !session?.accessToken) {
       window.location.href = "/api/auth/login?callbackUrl=/create"
@@ -103,36 +154,27 @@ function CreateCompanyForm() {
     const modules = defaultModulesFor(industryId)
 
     try {
-      let createdId: string | null = null
-
-      for (let attempt = 1; attempt <= MAX_IDENTIFIER_ATTEMPTS; attempt++) {
-        const id = allocateIdentifier(trimmedName, attempt)
-        try {
-          await provisionTenant(
-            { name: trimmedName, identifier: id },
-            session.accessToken
-          )
-          createdId = id
-          break
-        } catch (error) {
-          if (error instanceof ApiError && error.status === 409) {
-            continue
-          }
-          throw error
-        }
-      }
-
-      if (!createdId) {
-        setSubmitError(
-          "Não foi possível gerar um identificador disponível. Tente outro nome."
+      const availability = await checkTenantIdentifierAvailability(
+        previewId,
+        session.accessToken
+      )
+      if (!availability.available) {
+        setSlugAvailable(false)
+        setSlugError(
+          `O identificador /${availability.identifier} já está em uso. Escolha outro nome.`
         )
         setSubmitting(false)
         return
       }
 
+      await provisionTenant(
+        { name: trimmedName, identifier: previewId },
+        session.accessToken
+      )
+
       saveTenantProfile({
         name: trimmedName,
-        identifier: createdId,
+        identifier: previewId,
         industry: industryId,
         modules,
         completedAt: new Date().toISOString(),
@@ -142,10 +184,10 @@ function CreateCompanyForm() {
       await fetch("/api/auth/tenant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant: createdId }),
+        body: JSON.stringify({ tenant: previewId }),
       })
 
-      router.push(`/${createdId}`)
+      router.push(`/${previewId}`)
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         window.location.href = "/api/auth/login?callbackUrl=/create"
@@ -155,6 +197,14 @@ function CreateCompanyForm() {
         setCanCreateTenants(false)
         setSubmitError(
           "Plano pago necessário para criar empresas. Faça upgrade na assinatura."
+        )
+        setSubmitting(false)
+        return
+      }
+      if (error instanceof ApiError && error.status === 409) {
+        setSlugAvailable(false)
+        setSlugError(
+          `O identificador /${previewId} já está em uso. Escolha outro nome.`
         )
         setSubmitting(false)
         return
@@ -206,7 +256,7 @@ function CreateCompanyForm() {
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Informe o nome e o segmento. O identificador da URL é gerado
-          automaticamente.
+          automaticamente e precisa ser único.
         </p>
       </div>
 
@@ -234,17 +284,36 @@ function CreateCompanyForm() {
             required
             minLength={2}
             disabled={planLoading || !canCreateTenants}
+            aria-invalid={slugAvailable === false || undefined}
           />
-          <p className="text-xs text-muted-foreground">
+          <p
+            className={cn(
+              "text-xs",
+              slugAvailable === false
+                ? "text-destructive"
+                : "text-muted-foreground"
+            )}
+          >
             {previewId ? (
               <>
                 URL: <code className="text-xs">/{previewId}</code>
-                {submitting ? " · verificando disponibilidade…" : null}
+                {slugChecking
+                  ? " · verificando…"
+                  : slugAvailable === true
+                    ? " · disponível"
+                    : slugAvailable === false
+                      ? " · já em uso"
+                      : null}
               </>
             ) : (
               "O path será gerado a partir do nome."
             )}
           </p>
+          {slugError ? (
+            <p className="text-xs text-destructive" role="alert">
+              {slugError}
+            </p>
+          ) : null}
         </div>
 
         <div>
@@ -288,9 +357,11 @@ function CreateCompanyForm() {
         <Button type="submit" size="lg" disabled={!canSubmit} className="w-full">
           {planLoading
             ? "Verificando plano…"
-            : submitting
-              ? "Criando…"
-              : "Criar empresa"}
+            : slugChecking
+              ? "Verificando URL…"
+              : submitting
+                ? "Criando…"
+                : "Criar empresa"}
         </Button>
       </div>
     </form>

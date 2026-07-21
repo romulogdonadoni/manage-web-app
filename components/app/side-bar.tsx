@@ -170,20 +170,26 @@ export default function SideBar({
 
   const moduleNav = useMemo(() => {
     const routes = MODULE_ROUTES.filter((route) => route.nav)
-    const enabledModules = profile?.modules ?? [
-      "menu",
-      "orders",
-      "kds",
-      "catalog",
-      "customers",
-      "counter",
-      "delivery",
-    ]
+    const isOwner = tenantRole === "owner"
+    // Owner vê todos os módulos do nav; demais roles só os ligados no perfil.
+    const enabledModules = isOwner
+      ? null
+      : (profile?.modules ?? [
+          "products",
+          "menu",
+          "orders",
+          "kds",
+          "catalog",
+          "customers",
+          "counter",
+          "delivery",
+        ])
 
     return routes
       .filter(
         (route) =>
-          enabledModules.includes(route.moduleId) &&
+          (enabledModules == null ||
+            enabledModules.includes(route.moduleId)) &&
           canAccessNav(
             tenantRole,
             navAccessKeyForModule(route.moduleId),
@@ -459,7 +465,7 @@ export default function SideBar({
 
         <ScrollArea
           className={cn(
-            "flex flex-1 flex-col gap-0.5 overflow-y-auto pb-4 mt-4",
+            "mt-4 flex h-0 grow flex-col gap-0.5 overflow-y-auto pb-4",
             collapsed ? "items-center px-2" : "px-3"
           )}
         >

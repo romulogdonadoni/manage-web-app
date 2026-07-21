@@ -28,7 +28,7 @@ const RESERVED_SEGMENTS = new Set([
   "profile",
   "inventory",
   "menu",
-  "modifiers",
+  "products",
   "invoicing",
   "promotions",
   "suppliers",

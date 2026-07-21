@@ -19,11 +19,3 @@ export function updateAccountProfile(
     body: JSON.stringify(input),
   })
 }
-
-/** Temporary self-serve paid upgrade until Stripe is wired. */
-export function subscribePaidPlan(accessToken: string) {
-  return apiFetch<AccountUserDto>("/users/me/subscribe", {
-    method: "POST",
-    accessToken,
-  })
-}

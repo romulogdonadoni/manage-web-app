@@ -8,8 +8,8 @@ export type ModuleId =
   | "inventory"
   | "reports"
   | "settings"
+  | "products"
   | "menu"
-  | "modifiers"
   | "kds"
   | "delivery"
   | "counter"
@@ -113,6 +113,13 @@ export const CORE_MODULES: ModuleDef[] = [
     priceMonthly: 0,
     core: true,
   },
+  {
+    id: "products",
+    label: "Produtos",
+    description: "Todos os itens da loja (cadastro completo)",
+    priceMonthly: 0,
+    core: true,
+  },
 ]
 
 export const OPTIONAL_MODULES: ModuleDef[] = [
@@ -125,14 +132,8 @@ export const OPTIONAL_MODULES: ModuleDef[] = [
   {
     id: "menu",
     label: "Cardápio",
-    description: "Cardápio com categorias e destaques",
+    description: "Organize seções e itens do app",
     priceMonthly: 49,
-  },
-  {
-    id: "modifiers",
-    label: "Modifiers",
-    description: "Adicionais, remoções e personalizações",
-    priceMonthly: 29,
   },
   {
     id: "kds",
@@ -255,8 +256,8 @@ export const INDUSTRIES: IndustryDef[] = [
     description: "Salão, comandas, cozinha e delivery",
     group: "Food",
     modules: [
+      { id: "products", recommended: true },
       { id: "menu", recommended: true },
-      { id: "modifiers", recommended: true },
       { id: "tables", recommended: true },
       { id: "reservations", recommended: true },
       { id: "kds", recommended: true },

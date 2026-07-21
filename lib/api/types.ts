@@ -60,12 +60,15 @@ export type CurrentUserDto = {
 export type AccountUserDto = CurrentUserDto & {
   firstName: string
   lastName: string
+  subscriptionStatus?: string
+  canManageSubscription?: boolean
 }
 export type CurrentTenantDto = {
   tenantId: string
   identifier: string
   name: string
   logoUrl: string | null
+  bannerUrl: string | null
   isOpen: boolean
   openedAtUtc: string | null
   closedAtUtc: string | null
@@ -78,6 +81,13 @@ export type UpdateLogoResult = {
   identifier: string
   name: string
   logoUrl: string | null
+}
+
+export type UpdateBannerResult = {
+  id: string
+  identifier: string
+  name: string
+  bannerUrl: string | null
 }
 
 export type TenantRole = "owner" | "admin" | "member"
