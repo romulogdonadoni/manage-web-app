@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
-import { AccountBackLink } from "@/components/app/account-back-link"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -79,7 +78,6 @@ export default function AccountBillingPage() {
   return (
     <>
       <div>
-        <AccountBackLink />
         <h1 className="text-3xl font-semibold tracking-tight">
           Assinatura e planos
         </h1>

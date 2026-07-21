@@ -145,7 +145,7 @@ export function UserProfileCard() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
       <Card size="sm" className="shadow-none">
         <CardHeader>
           <CardTitle>Nome</CardTitle>

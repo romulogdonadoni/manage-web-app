@@ -1,14 +1,6 @@
 "use client"
 
-import {
-  CreditCard,
-  LogOut,
-  Mail,
-  Moon,
-  Settings,
-  Sun,
-  UserRound,
-} from "lucide-react"
+import { LogOut, Moon, Sun, UserRound } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { useTheme } from "next-themes"
 import Link from "next/link"
@@ -26,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { listMyInvitations } from "@/lib/api/invitations"
 import { getAccountUser } from "@/lib/api/users"
 import { BILLING_STATE_KEY, clearTenantProfile } from "@/lib/modules/storage"
@@ -40,35 +33,27 @@ function initialsFrom(name?: string | null, email?: string | null) {
   return source.slice(0, 2).toUpperCase()
 }
 
-function isActivePath(pathname: string, href: string) {
-  if (href === "/account") {
-    return pathname === "/account"
-  }
-  return pathname === href || pathname.startsWith(`${href}/`)
-}
-
-const accountLinks = [
-  {
-    href: "/account",
-    label: "Visão geral",
-    icon: Settings,
-  },
-  {
-    href: "/account/profile",
-    label: "Meu perfil",
-    icon: UserRound,
-  },
-  {
-    href: "/account/invitations",
-    label: "Convites",
-    icon: Mail,
-  },
-  {
-    href: "/account/billing",
-    label: "Assinatura e planos",
-    icon: CreditCard,
-  },
+const mainTabs = [
+  { value: "companies", href: "/", label: "Empresas" },
+  { value: "invitations", href: "/account/invitations", label: "Convites" },
+  { value: "billing", href: "/account/billing", label: "Assinaturas" },
 ] as const
+
+function resolveMainTab(pathname: string) {
+  if (
+    pathname.startsWith("/account/invitations") ||
+    pathname.startsWith("/invite")
+  ) {
+    return "invitations"
+  }
+  if (pathname.startsWith("/account/billing")) {
+    return "billing"
+  }
+  if (pathname === "/" || pathname.startsWith("/create")) {
+    return "companies"
+  }
+  return ""
+}
 
 export function ManageNav() {
   const pathname = usePathname()
@@ -83,11 +68,14 @@ export function ManageNav() {
   const accessToken = session?.accessToken
   const authenticated = status === "authenticated"
   const isDark = resolvedTheme === "dark"
+  const activeTab = resolveMainTab(pathname)
 
   const userName = displayName || session?.user?.name || "Conta"
   const userEmail = session?.user?.email || ""
   const userInitials = initialsFrom(userName, userEmail)
   const photoUrl = avatarUrl || session?.user?.image || null
+  const profileActive =
+    pathname === "/account/profile" || pathname === "/account"
 
   useEffect(() => {
     setThemeReady(true)
@@ -134,15 +122,36 @@ export function ManageNav() {
 
   return (
     <header className="border-b border-border/60 bg-background/80 backdrop-blur">
-      <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-4 px-6">
+      <div className="mx-auto grid h-14 w-full max-w-5xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-6">
         <Link
           href="/"
-          className="text-sm font-semibold tracking-[0.18em] uppercase"
+          className="justify-self-start text-sm font-semibold tracking-[0.18em] uppercase"
         >
           WhiteLabel
         </Link>
 
-        <div className="flex shrink-0 items-center gap-1">
+        <Tabs value={activeTab} className="min-w-0">
+          <TabsList className="max-w-full">
+            {mainTabs.map(({ value, href, label }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                nativeButton={false}
+                render={<Link href={href} />}
+                className="px-2.5 sm:px-3"
+              >
+                <span>{label}</span>
+                {value === "invitations" && pendingInvites > 0 ? (
+                  <span className="rounded-full bg-warning/25 px-1.5 py-0.5 text-[10px] font-semibold text-warning tabular-nums">
+                    {pendingInvites}
+                  </span>
+                ) : null}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
+        <div className="flex shrink-0 items-center justify-end gap-1 justify-self-end">
           <Button
             type="button"
             variant="ghost"
@@ -185,7 +194,7 @@ export function ManageNav() {
                 </span>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="min-w-60">
+              <DropdownMenuContent align="end" className="min-w-56">
                 <DropdownMenuGroup>
                   <DropdownMenuLabel className="font-normal">
                     <span className="block truncate text-sm font-medium text-foreground">
@@ -200,30 +209,16 @@ export function ManageNav() {
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                  {accountLinks.map(({ href, label, icon: Icon }) => {
-                    const active = isActivePath(pathname, href)
-                    const showInviteBadge =
-                      href === "/account/invitations" && pendingInvites > 0
-
-                    return (
-                      <DropdownMenuItem
-                        key={href}
-                        render={<Link href={href} />}
-                        className={cn(
-                          "cursor-pointer",
-                          active && "bg-muted text-foreground"
-                        )}
-                      >
-                        <Icon />
-                        <span className="flex-1">{label}</span>
-                        {showInviteBadge ? (
-                          <span className="rounded-full bg-warning/25 px-1.5 py-0.5 text-[10px] font-semibold text-warning tabular-nums">
-                            {pendingInvites}
-                          </span>
-                        ) : null}
-                      </DropdownMenuItem>
-                    )
-                  })}
+                  <DropdownMenuItem
+                    render={<Link href="/account/profile" />}
+                    className={cn(
+                      "cursor-pointer",
+                      profileActive && "bg-muted text-foreground"
+                    )}
+                  >
+                    <UserRound />
+                    Meu perfil
+                  </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>

@@ -1,7 +1,6 @@
 import { Mail } from "lucide-react"
 import { redirect } from "next/navigation"
 
-import { AccountBackLink } from "@/components/app/account-back-link"
 import { PendingInvites } from "@/components/app/pending-invites"
 import { auth } from "@/lib/auth"
 import { listMyInvitations } from "@/lib/api/invitations"
@@ -28,7 +27,6 @@ export default async function AccountInvitationsPage() {
   return (
     <>
       <div>
-        <AccountBackLink />
         <h1 className="text-3xl font-semibold tracking-tight">Convites</h1>
         <p className="mt-2 max-w-xl text-sm text-muted-foreground">
           Convites recebidos e enviados. Aceite para entrar em uma empresa ou
